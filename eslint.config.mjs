@@ -130,6 +130,7 @@ const boundaries = [
         [folder("features"), "src/map must not import features: it receives data through props."],
         [folder("components"), "src/map must not import components."],
         [folder("app"), "src/map must not import src/app."],
+        [folder("lib"), "src/map must not import src/lib: it is server code."],
         ...queries,
       ],
     }),
@@ -144,6 +145,7 @@ const boundaries = [
         [folder("features"), "src/components/ui is pure presentation: it must not import features."],
         [folder("map"), "src/components/ui is pure presentation: it must not import src/map."],
         [folder("app"), "src/components/ui must not import src/app."],
+        [folder("lib"), "src/components/ui must not import src/lib: it is server code."],
         ...queries,
       ],
     }),
@@ -156,6 +158,7 @@ const boundaries = [
       patterns: [
         maplibreSubpath,
         [folder("app"), "src/components must not import src/app."],
+        [folder("lib"), "src/components must not import src/lib: it is server code."],
         ...queries,
       ],
     }),
@@ -164,7 +167,20 @@ const boundaries = [
     files: ["src/app/**"],
     rules: forbid({ paths: [maplibre], patterns: [maplibreSubpath] }),
   },
-  // Any other folder (lib, data, src root, ...) gets the maplibre ban for static imports.
+  {
+    files: ["src/lib/**"],
+    rules: forbid({
+      paths: [maplibre],
+      patterns: [
+        maplibreSubpath,
+        ...["features", "components", "map", "app", "data", "hooks"].map((name) => [
+          folder(name),
+          `src/lib is business-free server code: it must not import src/${name}.`,
+        ]),
+      ],
+    }),
+  },
+  // Any other folder (data, src root, ...) gets the maplibre ban for static imports.
   {
     files: ["src/**"],
     ignores: [
@@ -174,6 +190,7 @@ const boundaries = [
       "src/map/**",
       "src/components/**",
       "src/app/**",
+      "src/lib/**",
     ],
     rules: forbid({ paths: [maplibre], patterns: [maplibreSubpath] }),
   },

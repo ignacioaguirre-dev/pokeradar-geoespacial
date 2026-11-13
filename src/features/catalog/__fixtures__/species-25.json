@@ -1,0 +1,290 @@
+{
+ "id": 25,
+ "name": "pikachu",
+ "names": [
+  {
+   "name": "Pikachu",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "name": "Pikachu",
+   "language": {
+    "name": "en"
+   }
+  }
+ ],
+ "flavor_text_entries": [
+  {
+   "flavor_text": "When several of\nthese POKéMON\ngather, their\felectricity could\nbuild and cause\nlightning storms.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "When several of\nthese POKéMON\ngather, their\felectricity could\nbuild and cause\nlightning storms.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It keeps its tail\nraised to monitor\nits surroundings.\fIf you yank its\ntail, it will try\nto bite you.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "This intelligent\nPOKéMON roasts\nhard BERRIES with\felectricity to\nmake them tender\nenough to eat.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It raises its tail\nto check its sur­\nroundings. The\ftail is sometimes\nstruck by light­\nning in this pose.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "When it is anger­\ned, it immediately\ndischarges the\fenergy stored in\nthe pouches in its\ncheeks.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Whenever PIKACHU comes across\nsomething new, it blasts it with a jolt\nof electricity.\fIf you come across a blackened berry,\nit’s evidence that this POKéMON\nmistook the intensity of its charge.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "This POKéMON has electricity-storing\npouches on its cheeks. These appear to\nbecome electrically charged during the\fnight while PIKACHU sleeps.\nIt occasionally discharges electricity\nwhen it is dozy after waking up.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It stores electricity in the electric sacs\non its cheeks. When it releases pent-up\nenergy in a burst, the electric power is\nequal to a lightning bolt.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It has small electric sacs on both its\ncheeks. If threatened, it looses electric\ncharges from the sacs.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "When several of these POKéMON gather,\ntheir electricity can build and cause\nlightning storms.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It lives in forests with others.\nIt stores electricity in the\npouches on its cheeks.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "If it looses crackling power from\nthe electric pouches on its\ncheeks, it is being wary.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It occasionally uses an electric\nshock to recharge a fellow PIKACHU\nthat is in a weakened state.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "This intelligent Pokémon roasts\nhard berries with electricity to\nmake them tender enough to eat.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It raises its tail to check its\nsurroundings. The tail is sometimes\nstruck by lightning in this pose.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It occasionally uses an electric\nshock to recharge a fellow Pikachu\nthat is in a weakened state.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It occasionally uses an electric\nshock to recharge a fellow Pikachu\nthat is in a weakened state.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It occasionally uses an electric\nshock to recharge a fellow Pikachu\nthat is in a weakened state.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "It occasionally uses an electric\nshock to recharge a fellow Pikachu\nthat is in a weakened state.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Levanta su cola para vigilar los alrededores. A veces,\npuede ser alcanzado por un rayo en esa pose.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "It raises its tail to check its surroundings.\nThe tail is sometimes struck by lightning\nin this pose.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Las bolsas de las mejillas están llenas de electricidad,\nque libera cuando se siente amenazado.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "It has small electric sacs on both its cheeks.\nIf threatened, it looses electric charges from\nthe sacs.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Cada vez que un Pikachu se encuentra con algo nuevo, le\nlanza una descarga eléctrica. Cuando se ve alguna baya\nchamuscada, es muy probable que sea obra de un Pikachu,\nya que a veces no controlan la intensidad de la descarga.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "Whenever Pikachu comes across something new,\nit blasts it with a jolt of electricity. If you come across a\nblackened berry, it’s evidence that this Pokémon mistook the\nintensity of its charge.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Este Pokémon tiene unas bolsas en las mejillas donde\nalmacena electricidad. Parece ser que se recargan por la\nnoche, mientras Pikachu duerme. A veces, cuando se acaba\nde despertar y está aún medio dormido, descarga un poco.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "This Pokémon has electricity-storing pouches on its cheeks.\nThese appear to become electrically charged during the night\nwhile Pikachu sleeps. It occasionally discharges electricity\nwhen it is dozy after waking up.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Recientemente se ha presentado un proyecto\npara reunir numerosos Pikachu y crear con ellos\nuna central eléctrica.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "A plan was recently announced to gather\nmany Pikachu and make an electric power plant.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Pikachu almacena electricidad en su cuerpo.\nSi no la libera de vez en cuando y se desfoga,\npuede sufrir estrés.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "It’s in its nature to store electricity. It feels\nstressed now and then if it’s unable to fully\ndischarge the electricity.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Acumulan electricidad de forma natural. Los\nbosques donde habitan en grupos están en\npeligro constante de ser alcanzados por rayos.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "Its nature is to store up electricity. Forests\nwhere nests of Pikachu live are dangerous,\nsince the trees are so often struck by lightning.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Mientras duerme, acumula electricidad en las\nbolsas de sus mejillas. Si no logra conciliar el\nsueño, solo puede emitir débiles descargas.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "While sleeping, it generates electricity in the\nsacs in its cheeks. If it’s not getting enough\nsleep, it will be able to use only weak electricity.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Los bosques son su hábitat natural. En las bolsas\nde las mejillas acumula electricidad, por lo que\nquien las toque puede recibir una descarga.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "This forest-dwelling Pokémon stores electricity\nin its cheeks, so you’ll feel a tingly shock\nif you touch it.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Los bosques son su hábitat natural. En las bolsas\nde las mejillas acumula electricidad, por lo que\nquien las toque puede recibir una descarga.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "This forest-dwelling Pokémon stores electricity\nin its cheeks, so you’ll feel a tingly shock\nif you touch it.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Cuanto más potente es la energía eléctrica que\ngenera este Pokémon, más suaves y elásticas se\nvuelven las bolsas de sus mejillas.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "Pikachu that can generate powerful electricity\nhave cheek sacs that are extra soft and\nsuper stretchy.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Los miembros de esta especie se saludan entre\nsí uniendo sus colas y transmitiéndose corriente\neléctrica.",
+   "language": {
+    "name": "es"
+   }
+  },
+  {
+   "flavor_text": "When Pikachu meet, they’ll touch their tails\ntogether and exchange electricity through them\nas a form of greeting.",
+   "language": {
+    "name": "en"
+   }
+  },
+  {
+   "flavor_text": "Possesses cheek sacs in which it stores electricity. This clever\nforest-dweller roasts tough berries with an electric shock before\nconsuming them.",
+   "language": {
+    "name": "en"
+   }
+  }
+ ]
+}
