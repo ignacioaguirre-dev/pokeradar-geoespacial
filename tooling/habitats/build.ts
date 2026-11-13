@@ -1,5 +1,7 @@
 // Builds src/data/habitats.geojson from RESOLVE Ecoregions 2017 (CC-BY 4.0). Run with `pnpm habitats:build`.
 // Offline preprocessing: the app only reads the committed output.
+// The committed output comes from the download of 2026-11-13, when the query returned 25 ecoregions;
+// a different count on a rerun means RESOLVE changed and the mapping table needs a review.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import mapshaper from "mapshaper";
