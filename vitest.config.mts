@@ -3,7 +3,11 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    // Next aliases next/dynamic to its App Router build; the default one wraps refs and swallows them
+    alias: [{ find: /^next\/dynamic$/, replacement: "next/dist/api/app-dynamic" }],
+  },
   test: {
     coverage: {
       provider: "v8",

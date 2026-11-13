@@ -1,0 +1,184 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
+import type { MapHandle, MapStatus } from "@/map/base-map";
+import { supportsWebGL2 } from "@/map/supports-webgl2";
+
+// The notices come from MapStage, so the chunk shows nothing while it downloads
+const BaseMap = dynamic(() => import("@/map/base-map").then((m) => m.BaseMap), {
+  ssr: false,
+  loading: () => null,
+});
+
+const SLOW_MS = 8_000;
+const TIMEOUT_MS = 30_000;
+
+// Module constants keep their identity, so BaseMap only reacts to a real change
+const PADDING_NARROW = { top: 64, right: 12, bottom: 60, left: 12 };
+const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 120 };
+
+const WIDE_QUERY = "(min-width: 768px)";
+
+const ICON_PLUS = (
+  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M10 4v12M4 10h12" />
+  </svg>
+);
+
+const ICON_MINUS = (
+  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 10h12" />
+  </svg>
+);
+
+function subscribeNothing() {
+  return () => {};
+}
+
+// null until hydrated: the server cannot know, so it renders the loading state
+function useWebGL2Support(): boolean | null {
+  return useSyncExternalStore(subscribeNothing, supportsWebGL2, () => null);
+}
+
+function subscribeWide(onChange: () => void) {
+  const query = window.matchMedia(WIDE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function useWideViewport(): boolean {
+  return useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => false,
+  );
+}
+
+function subscribeOnline(onChange: () => void) {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
+function useOnline(): boolean {
+  return useSyncExternalStore(
+    subscribeOnline,
+    () => navigator.onLine,
+    () => true,
+  );
+}
+
+type Phase = "loading" | "slow" | "ready" | "error" | "offline";
+
+function failure(): Phase {
+  return navigator.onLine === false ? "offline" : "error";
+}
+
+export function MapStage() {
+  const t = useTranslations("Map");
+  const supported = useWebGL2Support();
+  const wide = useWideViewport();
+  const online = useOnline();
+  const mapRef = useRef<MapHandle>(null);
+  const [key, setKey] = useState(0);
+  const [phase, setPhase] = useState<Phase>("loading");
+
+  const mounted = supported === true;
+  const waiting = phase === "loading" || phase === "slow";
+
+  // Restarts with each mounted map (retry changes key) and stops once the map settles
+  useEffect(() => {
+    if (!mounted || !waiting) return;
+    const slow = setTimeout(() => setPhase((p) => (p === "loading" ? "slow" : p)), SLOW_MS);
+    const timeout = setTimeout(() => setPhase(failure()), TIMEOUT_MS);
+    return () => {
+      clearTimeout(slow);
+      clearTimeout(timeout);
+    };
+  }, [mounted, waiting, key]);
+
+  // Idempotent: BaseMap may repeat "error", and reports "ready" again after a restored context
+  function handleStatus(status: MapStatus) {
+    setPhase(status === "ready" ? "ready" : failure());
+  }
+
+  function retry() {
+    setKey((k) => k + 1);
+    setPhase("loading");
+  }
+
+  const visible =
+    supported === null
+      ? "loading"
+      : !supported
+        ? "unsupported"
+        : waiting && !online
+          ? "offline"
+          : phase;
+  const ready = visible === "ready";
+
+  const notice =
+    visible === "loading" || visible === "slow" ? (
+      <Notice variant="info" title={visible === "slow" ? t("slow") : t("loading")} />
+    ) : visible === "error" ? (
+      <Notice variant="error" title={t("errorTitle")} action={{ label: t("retry"), onActivate: retry }}>
+        {t("errorBody")}
+      </Notice>
+    ) : visible === "offline" ? (
+      <Notice variant="error" title={t("offlineTitle")} action={{ label: t("retry"), onActivate: retry }}>
+        {t("offlineBody")}
+      </Notice>
+    ) : visible === "unsupported" ? (
+      <Notice variant="info" title={t("unsupportedTitle")}>
+        {t("unsupportedBody")}
+      </Notice>
+    ) : null;
+
+  // Flow order inside the page's bottom column: notice above the controls, so it never pushes them
+  return (
+    <>
+      <section aria-label={t("region")} aria-busy={!ready} className="pointer-events-auto absolute inset-0">
+        {mounted ? (
+          <BaseMap
+            key={key}
+            ref={mapRef}
+            labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
+            padding={wide ? PADDING_WIDE : PADDING_NARROW}
+            onStatusChange={handleStatus}
+          />
+        ) : null}
+      </section>
+      {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
+      <nav aria-label={t("controls")} className="pointer-events-auto relative flex gap-2">
+        <Button
+          variant="secondary"
+          aria-label={t("zoomIn")}
+          disabled={!ready}
+          onClick={() => mapRef.current?.zoomIn()}
+          className="px-0!"
+        >
+          {ICON_PLUS}
+        </Button>
+        <Button
+          variant="secondary"
+          aria-label={t("zoomOut")}
+          disabled={!ready}
+          onClick={() => mapRef.current?.zoomOut()}
+          className="px-0!"
+        >
+          {ICON_MINUS}
+        </Button>
+        <Button variant="secondary" disabled={!ready} onClick={() => mapRef.current?.resetView()}>
+          {t("reset")}
+        </Button>
+      </nav>
+    </>
+  );
+}

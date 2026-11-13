@@ -127,8 +127,9 @@ export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) 
 
   return (
     <>
-      {/* MapLibre owns the container's children, so the help lives beside it */}
-      <div ref={containerRef} data-map className="absolute inset-0 bg-map-sea" />
+      {/* MapLibre owns the container's children, so the help lives beside it.
+          Sized, not positioned: MapLibre's unlayered .maplibregl-map forces position: relative over Tailwind's layer */}
+      <div ref={containerRef} data-map className="size-full bg-map-sea" />
       <p id={helpId} className="sr-only">
         {labels.keyboardHelp}
       </p>

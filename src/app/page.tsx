@@ -1,12 +1,52 @@
-import { getTranslations } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages, getTranslations } from "next-intl/server";
+import { preconnect } from "react-dom";
+import { MapStage } from "./_components/map-stage";
+
+const ATTRIBUTION_LINK =
+  "inline-flex min-h-11 items-center rounded-control underline-offset-2 hover:text-foreground hover:underline " +
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
 
 export default async function Home() {
+  // MapLibre fetches the TileJSON with CORS, so only an anonymous connection gets reused
+  preconnect("https://tiles.openfreemap.org", { crossOrigin: "anonymous" });
   const t = await getTranslations("Home");
+  const tMap = await getTranslations("Map");
+  const messages = await getMessages();
   return (
-    <main className="flex flex-1 items-center justify-center">
-      <h1 className="font-display font-stretch-condensed text-headline font-bold uppercase tracking-tight">
-        {t("heading")}
-      </h1>
-    </main>
+    // Bottom column: MapStage's notice and controls stack above the attribution; the map fills it absolutely
+    <div className="relative flex h-dvh flex-col justify-end gap-2 overflow-hidden bg-map-sea pb-[env(safe-area-inset-bottom)]">
+      {/* Lets drags reach the map under the brand */}
+      <header className="pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-10">
+        <h1 className="font-display font-stretch-condensed text-title font-bold uppercase tracking-tight md:text-headline">
+          {t("heading")}
+        </h1>
+      </header>
+      {/* Clicks fall through the empty column to the map; MapStage re-enables them on its parts */}
+      <main className="pointer-events-none flex flex-col items-end gap-2 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
+        <NextIntlClientProvider messages={{ Map: messages.Map }}>
+          <MapStage />
+        </NextIntlClientProvider>
+      </main>
+      <footer
+        aria-label={tMap("attribution")}
+        className="relative mr-[max(0.75rem,env(safe-area-inset-right))] ml-[max(0.75rem,env(safe-area-inset-left))] self-end rounded-t-panel bg-background/80 px-2 text-label text-muted"
+      >
+        <p className="flex flex-wrap items-center justify-end gap-x-1">
+          <a href="https://openfreemap.org" className={ATTRIBUTION_LINK}>
+            © OpenFreeMap
+          </a>
+          <span aria-hidden="true">·</span>
+          <a href="https://openmaptiles.org" className={ATTRIBUTION_LINK}>
+            © OpenMapTiles
+          </a>
+          <span aria-hidden="true">·</span>
+          {tMap("attributionData")}
+          <a href="https://www.openstreetmap.org/copyright" className={ATTRIBUTION_LINK}>
+            © OpenStreetMap
+          </a>
+        </p>
+      </footer>
+    </div>
   );
 }

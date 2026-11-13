@@ -5,6 +5,25 @@
   "Home": {
     "heading": "PokeRadar Geoespacial"
   },
+  "Map": {
+    "region": "Mapa de Argentina",
+    "keyboardHelp": "Usá las flechas para moverte y las teclas + y − para acercar o alejar.",
+    "controls": "Controles del mapa",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "reset": "Ver Argentina",
+    "loading": "Cargando el mapa…",
+    "slow": "El mapa está tardando más de lo normal.",
+    "errorTitle": "No se pudo cargar el mapa.",
+    "errorBody": "Revisá tu conexión y probá de nuevo.",
+    "offlineTitle": "Sin conexión.",
+    "offlineBody": "El mapa necesita internet para cargarse.",
+    "retry": "Reintentar",
+    "unsupportedTitle": "Este navegador no puede mostrar el mapa.",
+    "unsupportedBody": "Probá actualizarlo o activar la aceleración por hardware.",
+    "attribution": "Datos del mapa",
+    "attributionData": "Datos de"
+  },
   "Button": {
     "loading": "Cargando…"
   },
