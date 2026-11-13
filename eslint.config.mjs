@@ -39,7 +39,7 @@ const domain = (withVitest) => ({
             : String.raw`^(?!${allowedDomain})`,
           message: "src/domain is pure logic: it only imports from src/domain (and vitest in tests).",
         },
-        ...["features", "map", "components", "app", "data", "lib"].map((name) => ({
+        ...["features", "map", "components", "app", "data", "lib", "hooks"].map((name) => ({
           group: folder(name),
           message: `src/domain is pure logic: it does not import src/${name}.`,
         })),
@@ -107,6 +107,23 @@ const boundaries = [
     }),
   },
   {
+    files: ["src/hooks/**"],
+    rules: forbid({
+      paths: [maplibre],
+      patterns: [
+        maplibreSubpath,
+        [folder("domain"), "src/hooks is generic and business-free: it must not import domain."],
+        [folder("features"), "src/hooks is generic and business-free: it must not import features."],
+        [folder("map"), "src/hooks is generic and business-free: it must not import src/map."],
+        [folder("components"), "src/hooks is generic and business-free: it must not import components."],
+        [folder("app"), "src/hooks is generic and business-free: it must not import src/app."],
+        [folder("data"), "src/hooks is generic and business-free: it must not import data."],
+        [folder("lib"), "src/hooks is generic and business-free: it must not import src/lib."],
+        ...queries,
+      ],
+    }),
+  },
+  {
     files: ["src/map/**"],
     rules: forbid({
       patterns: [
@@ -150,7 +167,14 @@ const boundaries = [
   // Any other folder (lib, data, src root, ...) gets the maplibre ban for static imports.
   {
     files: ["src/**"],
-    ignores: ["src/domain/**", "src/features/**", "src/map/**", "src/components/**", "src/app/**"],
+    ignores: [
+      "src/domain/**",
+      "src/features/**",
+      "src/hooks/**",
+      "src/map/**",
+      "src/components/**",
+      "src/app/**",
+    ],
     rules: forbid({ paths: [maplibre], patterns: [maplibreSubpath] }),
   },
   { files: ["src/**"], ignores: ["src/map/**"], rules: dynamicMaplibre },

@@ -9,6 +9,7 @@ const DOMAIN = "src/domain/fence.ts";
 const DOMAIN_TEST = "src/domain/fence.test.ts";
 const DOMAIN_TEST_TSX = "src/domain/fence.test.tsx";
 const FEATURES = "src/features/weather/use-weather.ts";
+const HOOKS = "src/hooks/use-example.ts";
 const MAP = "src/map/camera.ts";
 const UI = "src/components/ui/button.tsx";
 const COMPONENT = "src/components/detail/detail.tsx";
@@ -24,6 +25,12 @@ const forbidden: Forbidden[] = [
   ["domain: only imports domain (react)", DOMAIN, `import "react";`, IMPORTS],
   ["domain: network and DOM globals (fetch)", DOMAIN, `fetch("/x");`, GLOBALS],
   ["features: does not import map", FEATURES, `import "@/map/camera";`, IMPORTS],
+  ["hooks: does not import domain", HOOKS, `import "@/domain/fence";`, IMPORTS],
+  ["hooks: does not import components", HOOKS, `import "../components/ui/button";`, IMPORTS],
+  ["hooks: does not import data", HOOKS, `import "@/data/species";`, IMPORTS],
+  ["hooks: does not import lib (relative)", HOOKS, `import "../lib/x";`, IMPORTS],
+  ["hooks: does not import maplibre", HOOKS, `import "maplibre-gl";`, IMPORTS],
+  ["hooks: does not import test utilities", HOOKS, `import "@/testing/render";`, IMPORTS],
   ["map: does not import features", MAP, `import "@/features/fences/storage";`, IMPORTS],
   ["ui: does not import domain", UI, `import "@/domain/fence";`, IMPORTS],
   ["components: do not import app", COMPONENT, `import "@/app/page";`, IMPORTS],
@@ -54,6 +61,8 @@ const allowed: Allowed[] = [
   ["domain: vitest in a test", DOMAIN_TEST, `import { expect } from "vitest";`],
   ["domain: vitest in a tsx test", DOMAIN_TEST_TSX, `import { expect } from "vitest";`],
   ["features imports domain and react", FEATURES, `import "@/domain/fence"; import "react";`],
+  ["hooks: imports react and other hooks", HOOKS, `import "react"; import "./use-other"; import "@/hooks/use-other";`],
+  ["route: _componentes imports hooks, domain and ui", "src/app/sistema/_componentes/colores.tsx", `import "@/hooks/use-example"; import "@/domain/color/contraste"; import "@/components/ui/boton";`],
   ["map imports maplibre (static and dynamic)", MAP, `import "maplibre-gl"; await import("maplibre-gl");`],
   ["ui imports ui", UI, `import "@/components/ui/another";`],
   ["component imports domain, map and storage", COMPONENT, `import "@/domain/fence"; import "@/map/camera"; import "@/features/fences/storage";`],

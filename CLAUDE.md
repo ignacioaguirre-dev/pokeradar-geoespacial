@@ -29,13 +29,14 @@
 - `src/domain`: lógica pura (cercas, distancias, reglas). Sólo importa de `domain` (entre subcarpetas, con `@/domain/…`; nunca `../`); sin React, Next, `maplibre-gl`, red ni DOM (`fetch`, `window`, `document`...).
 - `src/features`: estado, almacenamiento y hooks por funcionalidad (`queries.ts`, `schema.ts`, `storage.ts`, `use-*.ts`); puede importar `domain`.
 - `queries.ts` lleva `import "server-only"` y sólo se lee desde `src/app`; ningún componente lo importa.
+- `src/hooks`: hooks genéricos sin negocio; lo importan `features`, `components`, `map` y `app` (`domain` no); ellos no importan nada de la app.
 - `src/data`: datos estáticos; `domain` no lo importa.
 - `src/map`: el único lugar que importa `maplibre-gl` (también con `import()` dinámico); sólo conoce `domain` y recibe datos por props, sin importar `features`.
 - `src/components`: piezas de interfaz; `components/ui` es presentación pura, sin dominio ni features.
-- `src/app`: rutas y composición; lee `queries` del servidor.
+- `src/app`: rutas y composición; lee `queries` del servidor. Lo que sólo usa una ruta va en `src/app/<ruta>/_componentes/` (carpeta privada, no es una ruta).
 - `src/i18n`: configuración de next-intl (`request.ts`, tipos de claves); un solo idioma, sin rutas por idioma. El catálogo vive en `messages/es-AR.json`.
 - `src/testing`: utilidades de test (`render` con next-intl); sólo lo importan los tests, nunca la app (lo fuerza `pnpm lint`).
-- Dirección de dependencias: `domain ← features ← components ← app`.
+- Dirección de dependencias: `domain ← features ← components ← app`; `hooks` es transversal (lo importan `features`, `components`, `map` y `app`).
 - Las fronteras las fuerza `pnpm lint`.
 - Tests: `.test.ts` corre en node y `.test.tsx` en jsdom; si un test de `storage.ts` o `use-*.ts` necesita DOM, va como `.test.tsx`.
 - Antes de escribir un ayudante o una pieza, buscar si ya existe.
@@ -52,5 +53,5 @@
 - Todo fix de bug entra con el test que lo reproduce (en rojo antes, en verde después).
 - Un camino de error se testea afirmando lo que ve el usuario (mensaje, reintento), no sólo que algo falló.
 - Determinismo: lo aleatorio lleva semilla y lo que depende de la hora usa fechas fijas o fake timers.
-- Los tests de captura visual llevan la etiqueta `@visual` y sólo corren en chromium (la config los excluye de los otros perfiles). Las capturas de base viven en `e2e/__screenshots__/` y los ayudantes de E2E en `e2e/helpers.ts`.
+- Los tests de captura visual llevan la etiqueta `@visual` y sólo corren en chromium (la config los excluye de los otros perfiles). Las capturas de base viven en `e2e/__screenshots__/` (la de Linux se regenera con `pnpm e2e:screenshots`, en Docker) y los ayudantes de E2E en `e2e/helpers.ts`.
 - Sin `.only`. Un `.skip` lleva condición y motivo.
