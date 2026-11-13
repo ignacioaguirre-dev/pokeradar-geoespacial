@@ -24,7 +24,7 @@ const queries = [
   [["**/queries", "**/queries/**"], "Queries are server-only: read them from src/app, not from this folder."],
 ];
 
-// src/domain imports only from src/domain, plus vitest in tests.
+// src/domain imports only from src/domain, plus vitest and fast-check (property tests) in tests.
 // The regex rejects every package, other alias and ".." path; the folder patterns only give clearer messages.
 // Allowed: "./..." and "@/domain/..." with no ".." segment anywhere. Parent-relative imports go through "@/domain/...".
 const allowedDomain = String.raw`(?!(?:.*/)?\.\.(?:/|$))(?:\./|@/domain(?:/|$))`;
@@ -35,9 +35,9 @@ const domain = (withVitest) => ({
       patterns: [
         {
           regex: withVitest
-            ? String.raw`^(?!${allowedDomain}|vitest$)`
+            ? String.raw`^(?!${allowedDomain}|vitest$|fast-check$)`
             : String.raw`^(?!${allowedDomain})`,
-          message: "src/domain is pure logic: it only imports from src/domain (and vitest in tests).",
+          message: "src/domain is pure logic: it only imports from src/domain (and vitest or fast-check in tests).",
         },
         ...["features", "map", "components", "app", "data", "lib", "hooks"].map((name) => ({
           group: folder(name),

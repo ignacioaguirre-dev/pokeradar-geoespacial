@@ -54,12 +54,15 @@ const forbidden: Forbidden[] = [
   ["domain: ../ from a subfolder", "src/domain/geo/edge.ts", `import "../x";`, IMPORTS],
   ["domain: tests do not import packages either", DOMAIN_TEST, `import "lodash";`, IMPORTS],
   ["domain: vitest outside tests", DOMAIN, `import { expect } from "vitest";`, IMPORTS],
+  ["domain: fast-check outside tests", DOMAIN, `import fc from "fast-check";`, IMPORTS],
+  ["domain: fast-check subpath in a test", DOMAIN_TEST, `import "fast-check/lib/x";`, IMPORTS],
 ];
 
 const allowed: Allowed[] = [
   ["domain imports domain", DOMAIN, `import "./x"; import "./sub/x"; import "@/domain/geo/x";`],
   ["domain: vitest in a test", DOMAIN_TEST, `import { expect } from "vitest";`],
   ["domain: vitest in a tsx test", DOMAIN_TEST_TSX, `import { expect } from "vitest";`],
+  ["domain: fast-check in a test", DOMAIN_TEST, `import fc from "fast-check";`],
   ["features imports domain and react", FEATURES, `import "@/domain/fence"; import "react";`],
   ["hooks: imports react and other hooks", HOOKS, `import "react"; import "./use-other"; import "@/hooks/use-other";`],
   ["route: _components imports hooks, domain and ui", "src/app/system/_components/colors.tsx", `import "@/hooks/use-example"; import "@/domain/color/contrast"; import "@/components/ui/button";`],
