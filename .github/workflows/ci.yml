@@ -72,17 +72,17 @@ jobs:
 
       - name: Check that the five projects are defined
         run: |
-          list="$(pnpm exec playwright test --list --grep @critico)"
+          list="$(pnpm exec playwright test --list --grep @critical)"
           echo "$list"
           for project in chromium firefox webkit android iphone; do
             if ! grep -q "\[$project\]" <<< "$list"; then
-              echo "::error::Falta el proyecto '$project' en la matriz de Playwright"
+              echo "::error::Project '$project' is missing from the Playwright matrix"
               exit 1
             fi
           done
 
       # One run keeps every project in a single report.
-      # Release branches run the full suite; the rest runs @critico outside chromium.
+      # Release branches run the full suite; the rest runs @critical outside chromium.
       - name: Run e2e
         env:
           HEAD: ${{ github.head_ref }}

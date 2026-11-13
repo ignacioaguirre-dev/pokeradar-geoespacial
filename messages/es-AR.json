@@ -4,5 +4,104 @@
   },
   "Home": {
     "heading": "PokeRadar Geoespacial"
+  },
+  "Button": {
+    "loading": "Cargando…"
+  },
+  "System": {
+    "metaTitle": "Sistema · PokeRadar Geoespacial",
+    "heading": "Sistema de diseño",
+    "intro": "Referencia viva de los tokens y las primitivas de PokeRadar Geoespacial.",
+    "sections": {
+      "colors": "Colores",
+      "typography": "Tipografía",
+      "motion": "Movimiento",
+      "button": "Botón",
+      "tag": "Rótulo",
+      "energyBar": "Barra de energía",
+      "quantity": "Cifra",
+      "notice": "Aviso"
+    },
+    "colors": {
+      "intro": "Contraste de cada color sobre el fondo, contra el mínimo de su uso.",
+      "columns": {
+        "token": "Token",
+        "origin": "Origen",
+        "value": "Valor",
+        "contrast": "Contraste",
+        "usage": "Uso",
+        "result": "Resultado"
+      },
+      "origins": {
+        "background": "Noche de la puna",
+        "surface": "Derivado de: Noche de la puna",
+        "foreground": "Sal de Salinas Grandes",
+        "muted": "Derivado de: Sal de Salinas Grandes",
+        "structure": "Basalto de la meseta",
+        "control": "Derivado de: Basalto de la meseta",
+        "habitat": "Ocre de la puna jujeña",
+        "condition": "Hielo del Perito Moreno",
+        "energy": "Flor de ceibo",
+        "alert": "Piedra de Talampaya"
+      },
+      "usage": {
+        "base": "Fondo base",
+        "text": "Texto",
+        "graphic": "Gráfico",
+        "decorative": "Decorativo",
+        "withMinimum": "{usage} · mín. {minimum, number}"
+      },
+      "result": {
+        "pass": "✓ Cumple",
+        "fail": "✕ No cumple",
+        "noMinimum": "Sin mínimo"
+      }
+    },
+    "typography": {
+      "sample": "Pikachu en el Aconcagua",
+      "figures": "Las cifras van en Chivo Mono, con dígitos de ancho fijo:",
+      "condensed": "Archivo condensada",
+      "sizes": {
+        "label": "0,75 rem",
+        "body": "0,9375 rem",
+        "subtitle": "1,125 rem",
+        "title": "1,5 a 1,875 rem",
+        "headline": "2,25 a 3,25 rem",
+        "hero": "3,5 a 5,5 rem"
+      }
+    },
+    "motion": {
+      "reduced": "Con movimiento reducido todas las duraciones pasan a 0 ms."
+    },
+    "button": {
+      "primary": "Principal",
+      "secondary": "Secundaria",
+      "save": "Guardar",
+      "createFence": "Crear cerca",
+      "missingVertices": "Faltan 2 vértices",
+      "searching": "Buscando",
+      "cancel": "Cancelar",
+      "export": "Exportar",
+      "pickZoneFirst": "Elegí una zona primero",
+      "loading": "Cargando"
+    },
+    "tag": {
+      "forest": "Bosque",
+      "rain": "Lluvia",
+      "noData": "Sin dato"
+    },
+    "energyBar": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "max": "Máximo"
+    },
+    "notice": {
+      "infoTitle": "Radar actualizado",
+      "infoBody": "Se cargaron los avistamientos de las últimas 24 horas.",
+      "successTitle": "Cerca guardada",
+      "errorTitle": "No se pudo cargar el mapa",
+      "errorBody": "Revisá tu conexión. Intentos: {attempts, number}",
+      "retry": "Reintentar"
+    }
   }
 }

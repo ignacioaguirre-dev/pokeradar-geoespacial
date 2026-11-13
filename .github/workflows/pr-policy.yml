@@ -30,11 +30,11 @@ jobs:
             develop) allowed='^(feat|fix|chore|release|hotfix)/' ;;
           esac
           if ! [[ "$HEAD" =~ $allowed ]]; then
-            echo "::error::La rama '$HEAD' no puede integrarse en '$BASE' (permitido: $allowed)"
+            echo "::error::Branch '$HEAD' cannot be merged into '$BASE' (allowed: $allowed)"
             fail=1
           fi
           if ! [[ "$HEAD" =~ ^[a-z]+/[a-z0-9.][a-z0-9.-]*$ ]]; then
-            echo "::error::'$HEAD' no sigue <tipo>/<descripcion-en-kebab-case>"
+            echo "::error::'$HEAD' does not follow <type>/<kebab-case-description>"
             fail=1
           fi
 

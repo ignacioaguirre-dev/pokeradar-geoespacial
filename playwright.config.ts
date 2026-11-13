@@ -1,12 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const isCI = Boolean(process.env.CI);
-// Release runs exercise every project fully; otherwise non-chromium projects only run @critico
+// Release runs exercise every project fully; otherwise non-chromium projects only run @critical
 const full = process.env.E2E_FULL === "1";
 // Captures (@visual) exist only for chromium, so other projects never run them
 const criticalOnly = full
   ? { grepInvert: /@visual/ }
-  : { grep: /@critico/, grepInvert: /@visual/ };
+  : { grep: /@critical/, grepInvert: /@visual/ };
 // Own port so a running `pnpm dev` on 3000 is never reused
 const port = 3100;
 
