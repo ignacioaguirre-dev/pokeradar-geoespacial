@@ -11,7 +11,7 @@ function vertexAverage(ring: Ring): LngLat {
   return [lng / ring.length, lat / ring.length];
 }
 
-// Planar area centroid in lng/lat: fences are small enough for the distortion not to matter.
+// Planar in lng/lat: fences are small enough for the distortion not to matter.
 export function centroid(ring: Ring): LngLat {
   if (ring.length === 0) throw new RangeError("centroid needs at least one vertex.");
   const area = signedPlanarArea(ring);

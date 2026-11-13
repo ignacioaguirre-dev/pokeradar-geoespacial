@@ -1,10 +1,10 @@
 import type { Ring } from "./types";
 
-// Mean Earth radius (IUGG), in km.
+// IUGG mean radius: the one the reference areas in the tests use.
 const EARTH_RADIUS_KM = 6371.0088;
 const RADIANS = Math.PI / 180;
 
-// Spherical ring area: R²/2 · |Σ (λ2 − λ1)(2 + sin φ1 + sin φ2)|. Exact along meridians and parallels.
+// Spherical approximation: cheap, exact along meridians and parallels and close enough for fence-sized rings.
 export function areaKm2(ring: Ring): number {
   if (ring.length < 3) return 0;
   let sum = 0;

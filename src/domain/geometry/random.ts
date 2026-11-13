@@ -15,7 +15,7 @@ export function createRng(seed: number): () => number {
   };
 }
 
-// Rejection sampling inside the bbox. A flat ring would accept points on its edge, so it is ruled out first.
+// A flat ring would accept points on its edge, so it is ruled out first.
 export function randomPointInRing(ring: Ring, rng: () => number, maxAttempts = 1000): LngLat | null {
   if (ring.length < 3 || Math.abs(signedPlanarArea(ring)) < DEGENERATE_AREA) return null;
   const [west, south, east, north] = bbox(ring);
