@@ -81,13 +81,13 @@ jobs:
             fi
           done
 
-      # One run keeps every project and every webgl2 attachment in a single report.
+      # One run keeps every project in a single report.
       # Release branches run the full suite; the rest runs @critico outside chromium.
       - name: Run e2e
         env:
           HEAD: ${{ github.head_ref }}
         run: |
-          if [[ "$HEAD" == release/* ]]; then export E2E_COMPLETO=1; fi
+          if [[ "$HEAD" == release/* ]]; then export E2E_FULL=1; fi
           pnpm exec playwright test
 
       - uses: actions/upload-artifact@v4

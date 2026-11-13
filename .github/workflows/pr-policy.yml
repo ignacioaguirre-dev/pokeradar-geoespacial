@@ -40,7 +40,7 @@ jobs:
 
           title_re='^(feat|fix|chore|docs|refactor|test|ci|perf|build|style|revert)(\([a-z0-9-]+\))?!?: [a-z0-9].*$'
           if ! [[ "$TITLE" =~ $title_re ]]; then
-            echo "::error::El título '$TITLE' no sigue 'tipo(alcance): asunto' con asunto en minúscula"
+            echo "::error::The title '$TITLE' does not follow 'type(scope): subject' with a lowercase subject"
             fail=1
           fi
 
@@ -48,7 +48,7 @@ jobs:
           prefix="${HEAD%%/*}"
           type="${TITLE%%[(:!]*}"
           if [[ "$prefix" =~ ^(feat|fix|chore)$ && "$type" != "$prefix" ]]; then
-            echo "::error::El tipo del título ('$type') no coincide con el prefijo de la rama ('$prefix')"
+            echo "::error::The title type ('$type') does not match the branch prefix ('$prefix')"
             fail=1
           fi
 

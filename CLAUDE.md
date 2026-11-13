@@ -18,6 +18,7 @@
 
 ## Commits y comentarios
 
+- Código e identificadores en inglés; textos de la interfaz en español (es-AR) mediante next-intl (messages/es-AR.json).
 - Commits `tipo(alcance): asunto` en castellano, asunto en minúscula. El tipo coincide con el prefijo de la rama.
 - Nunca mencionar en commits, PRs ni comentarios quién pidió el cambio ni de qué conversación salió.
 - Comentarios en inglés, cortos y sólo el porqué.
@@ -32,6 +33,8 @@
 - `src/map`: el único lugar que importa `maplibre-gl` (también con `import()` dinámico); sólo conoce `domain` y recibe datos por props, sin importar `features`.
 - `src/components`: piezas de interfaz; `components/ui` es presentación pura, sin dominio ni features.
 - `src/app`: rutas y composición; lee `queries` del servidor.
+- `src/i18n`: configuración de next-intl (`request.ts`, tipos de claves); un solo idioma, sin rutas por idioma. El catálogo vive en `messages/es-AR.json`.
+- `src/testing`: utilidades de test (`render` con next-intl); sólo lo importan los tests, nunca la app (lo fuerza `pnpm lint`).
 - Dirección de dependencias: `domain ← features ← components ← app`.
 - Las fronteras las fuerza `pnpm lint`.
 - Tests: `.test.ts` corre en node y `.test.tsx` en jsdom; si un test de `storage.ts` o `use-*.ts` necesita DOM, va como `.test.tsx`.
@@ -45,9 +48,9 @@
 - Componentes → Testing Library por rol y texto visible, nunca por clases o estructura. Cada estado de la spec (cargando, error con reintento, vacío) tiene su caso.
 - Flujos completos y lo que depende del navegador (mapa, WebGL, red caída, teclado) → E2E con Playwright. El mapa se afirma por lo observable (marcadores, lista, lectura), nunca por píxeles del lienzo.
 - `@critico` sólo en los flujos que tienen que andar en los cinco perfiles; el resto corre en chromium.
-- Una regla transversal se protege con un test de conformidad (ejemplo: `tooling/eslint-fronteras.test.ts`): un caso prohibido y uno permitido por regla, más cada fuga que se haya encontrado.
+- Una regla transversal se protege con un test de conformidad (ejemplo: `tooling/import-boundaries.test.ts`): un caso prohibido y uno permitido por regla, más cada fuga que se haya encontrado.
 - Todo fix de bug entra con el test que lo reproduce (en rojo antes, en verde después).
 - Un camino de error se testea afirmando lo que ve el usuario (mensaje, reintento), no sólo que algo falló.
 - Determinismo: lo aleatorio lleva semilla y lo que depende de la hora usa fechas fijas o fake timers.
-- Los tests de captura visual llevan la etiqueta `@visual` y sólo corren en chromium (la config los excluye de los otros perfiles).
+- Los tests de captura visual llevan la etiqueta `@visual` y sólo corren en chromium (la config los excluye de los otros perfiles). Las capturas de base viven en `e2e/__screenshots__/` y los ayudantes de E2E en `e2e/helpers.ts`.
 - Sin `.only`. Un `.skip` lleva condición y motivo.

@@ -44,5 +44,5 @@ next-env.d.ts
 /playwright-report
 /test-results
 # Only the Linux baseline is versioned (CI renders on Linux)
-/e2e/__capturas__/*
-!/e2e/__capturas__/linux/
+/e2e/__screenshots__/*
+!/e2e/__screenshots__/linux/
