@@ -105,9 +105,9 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # No pnpm cache here: the job never installs, so there is no store to save
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
 
       - run: pnpm audit --audit-level=high
