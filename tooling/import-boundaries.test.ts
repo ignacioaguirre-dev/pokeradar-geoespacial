@@ -50,6 +50,7 @@ const forbidden: Forbidden[] = [
   ["components: do not import lib (server only)", COMPONENT, `import "@/lib/upstream/response";`, IMPORTS],
   ["ui: does not import lib", UI, `import "@/lib/upstream/response";`, IMPORTS],
   ["map: does not import lib", MAP, `import "@/lib/upstream/fetch-json";`, IMPORTS],
+  ["map: does not import data", MAP, `import "@/data/habitats.geojson";`, IMPORTS],
   ["unlisted folder: does not import maplibre", DATA, `import "maplibre-gl";`, IMPORTS],
 
   // Regression: leaks found during review
@@ -75,6 +76,7 @@ const allowed: Allowed[] = [
   ["domain: vitest in a test", DOMAIN_TEST, `import { expect } from "vitest";`],
   ["domain: vitest in a tsx test", DOMAIN_TEST_TSX, `import { expect } from "vitest";`],
   ["domain: fast-check in a test", DOMAIN_TEST, `import fc from "fast-check";`],
+  ["map imports domain", MAP, `import "@/domain/geography/argentina-outline";`],
   ["features imports domain and react", FEATURES, `import "@/domain/fence"; import "react";`],
   ["hooks: imports react and other hooks", HOOKS, `import "react"; import "./use-other"; import "@/hooks/use-other";`],
   ["route: _components imports hooks, domain and ui", "src/app/system/_components/colors.tsx", `import "@/hooks/use-example"; import "@/domain/color/contrast"; import "@/components/ui/button";`],

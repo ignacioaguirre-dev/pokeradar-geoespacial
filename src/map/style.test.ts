@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HabitatCollection } from "./habitats";
 import type { MapColors } from "./colors";
-import { ARGENTINA_OUTLINE } from "@/data/argentina-outline";
+import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import { buildStyle } from "./style";
 
 // Obviously fake values: the test only checks that every color comes from here

@@ -3,7 +3,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import mapshaper from "mapshaper";
-import { ARGENTINA_OUTLINE } from "../../src/data/argentina-outline";
+import { ARGENTINA_OUTLINE } from "../../src/domain/geography/argentina-outline";
 
 type Position = [number, number];
 type Polygon = Position[][];

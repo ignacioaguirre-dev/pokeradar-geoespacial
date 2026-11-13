@@ -1,5 +1,5 @@
 import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
-import { ARGENTINA_OUTLINE } from "@/data/argentina-outline";
+import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { MapColors } from "./colors";
 import type { HabitatCollection } from "./habitats";
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ARGENTINA_OUTLINE } from "@/data/argentina-outline";
+import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import { pointInPolygon } from "@/domain/geometry/point-in-polygon";
 import type { LngLat, Ring } from "@/domain/geometry/types";
 

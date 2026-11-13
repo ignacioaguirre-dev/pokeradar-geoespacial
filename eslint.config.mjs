@@ -131,6 +131,7 @@ const boundaries = [
         [folder("components"), "src/map must not import components."],
         [folder("app"), "src/map must not import src/app."],
         [folder("lib"), "src/map must not import src/lib: it is server code."],
+        [folder("data"), "src/map must not import src/data: it receives data through props."],
         ...queries,
       ],
     }),
