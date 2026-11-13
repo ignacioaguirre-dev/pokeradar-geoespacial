@@ -35,8 +35,8 @@ La app queda disponible en http://localhost:3000.
 
 La base oficial se genera en Linux, porque el render de fuentes cambia entre sistemas. Para actualizarla:
 
-1. Correr el workflow `capturas` (Actions) sobre la rama.
-2. Descomprimir el artefacto en `e2e/__capturas__/`.
-3. Commitear sólo `e2e/__capturas__/linux/`, con commit firmado.
+1. Correr el workflow `screenshots` (Actions) sobre la rama.
+2. Descomprimir el artefacto en `e2e/__screenshots__/`.
+3. Commitear sólo `e2e/__screenshots__/linux/`, con commit firmado.
 
-Las capturas locales de Windows (`e2e/__capturas__/win32/`) son personales y no se versionan. Playwright usa el puerto 3100, así que un `pnpm dev` en el 3000 no interfiere.
+Las capturas locales de Windows (`e2e/__screenshots__/win32/`) son personales y no se versionan. Playwright usa el puerto 3100, así que un `pnpm dev` en el 3000 no interfiere.

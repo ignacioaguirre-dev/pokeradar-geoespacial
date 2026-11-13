@@ -1,22 +1,22 @@
-name: capturas
+name: screenshots
 
 on:
   workflow_dispatch:
     inputs:
-      rama:
-        description: Rama sobre la que regenerar las capturas de base
+      branch:
+        description: Branch to regenerate the baseline screenshots on
         required: true
 
 permissions:
   contents: read
 
 jobs:
-  capturas:
+  screenshots:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.rama }}
+          ref: ${{ inputs.branch }}
           persist-credentials: false
 
       - uses: pnpm/action-setup@v4
@@ -37,5 +37,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: capturas
-          path: e2e/__capturas__
+          name: screenshots
+          path: e2e/__screenshots__
