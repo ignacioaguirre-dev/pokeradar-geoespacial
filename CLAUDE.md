@@ -18,6 +18,7 @@
 
 ## Commits y comentarios
 
+- Código e identificadores en inglés; textos de la interfaz en español (es-AR) mediante next-intl (messages/es-AR.json).
 - Commits `tipo(alcance): asunto` en castellano, asunto en minúscula. El tipo coincide con el prefijo de la rama.
 - Nunca mencionar en commits, PRs ni comentarios quién pidió el cambio ni de qué conversación salió.
 - Comentarios en inglés, cortos y sólo el porqué.
