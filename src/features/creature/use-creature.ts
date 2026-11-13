@@ -1,0 +1,80 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { TYPE_NAMES, type CreatureDetail } from "@/features/catalog/types";
+
+export type CreatureError = "not-found" | "unavailable";
+
+export type CreatureState = {
+  state: "idle" | "loading" | "error" | "ready";
+  data?: CreatureDetail;
+  error?: CreatureError;
+  retry(): void;
+};
+
+// Per session: a creature's detail does not change while the page is open
+const cache = new Map<number, CreatureDetail>();
+
+const STAT_KEYS = ["hp", "attack", "defense", "specialAttack", "specialDefense", "speed"] as const;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const isStringOrNull = (value: unknown) => value === null || typeof value === "string";
+
+// Hand-written so zod stays out of the client bundle; checks only what the panel reads
+function isCreatureDetail(value: unknown): value is CreatureDetail {
+  if (!isRecord(value) || !isRecord(value.stats) || !isRecord(value.sprite)) return false;
+  const { stats, sprite } = value;
+  return (
+    isNumber(value.id) &&
+    typeof value.name === "string" &&
+    Array.isArray(value.types) &&
+    value.types.length > 0 &&
+    value.types.every((t) => (TYPE_NAMES as readonly unknown[]).includes(t)) &&
+    STAT_KEYS.every((key) => isNumber(stats[key])) &&
+    isNumber(value.heightM) &&
+    isNumber(value.weightKg) &&
+    typeof sprite.still === "string" &&
+    isStringOrNull(sprite.animated) &&
+    isStringOrNull(value.cry) &&
+    isStringOrNull(value.flavor)
+  );
+}
+
+type Settled = { key: string; data?: CreatureDetail; error?: CreatureError };
+
+export function useCreature(id: number | null): CreatureState {
+  const [attempt, setAttempt] = useState(0);
+  const [settled, setSettled] = useState<Settled | null>(null);
+  const key = `${id}:${attempt}`;
+  const cached = id === null ? undefined : cache.get(id);
+
+  useEffect(() => {
+    if (id === null || cache.has(id)) return;
+    const controller = new AbortController();
+    const settle = (result: Omit<Settled, "key">) => {
+      if (!controller.signal.aborted) setSettled({ key, ...result });
+    };
+    fetch(`/api/creatures/${id}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 404) return settle({ error: "not-found" });
+        if (!response.ok) return settle({ error: "unavailable" });
+        const body: unknown = await response.json();
+        if (!isCreatureDetail(body)) return settle({ error: "unavailable" });
+        cache.set(id, body);
+        settle({ data: body });
+      })
+      .catch(() => settle({ error: "unavailable" }));
+    return () => controller.abort();
+  }, [id, key]);
+
+  const retry = useCallback(() => setAttempt((a) => a + 1), []);
+
+  if (id === null) return { state: "idle", retry };
+  if (cached) return { state: "ready", data: cached, retry };
+  // A result from another id or an earlier attempt is stale: show loading until this one settles
+  if (settled?.key !== key) return { state: "loading", retry };
+  if (settled.error) return { state: "error", error: settled.error, retry };
+  return { state: "ready", data: settled.data, retry };
+}
