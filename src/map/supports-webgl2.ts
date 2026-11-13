@@ -5,7 +5,10 @@ let cached: boolean | undefined;
 export function supportsWebGL2(): boolean {
   if (cached === undefined) {
     try {
-      cached = document.createElement("canvas").getContext("webgl2") !== null;
+      const gl = document.createElement("canvas").getContext("webgl2");
+      cached = gl !== null;
+      // Browsers cap live contexts; the probe must not hold one the map will need
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
     } catch {
       cached = false;
     }

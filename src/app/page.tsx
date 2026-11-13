@@ -24,7 +24,8 @@ export default async function Home() {
       </header>
       {/* Clicks fall through the empty column to the map; MapStage re-enables them on its parts */}
       <main className="pointer-events-none flex flex-col items-end gap-2 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
-        <NextIntlClientProvider messages={{ Map: messages.Map }}>
+        {/* A nested provider replaces the messages, so every namespace the island reads goes here */}
+        <NextIntlClientProvider messages={{ Map: messages.Map, Button: messages.Button }}>
           <MapStage />
         </NextIntlClientProvider>
       </main>
