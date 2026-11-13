@@ -1,3 +1,9 @@
 allowBuilds:
   sharp: false
   unrs-resolver: false
+auditConfig:
+  ignoreGhsas:
+    # minimatch <11.0.1 (moderate ReDoS) only reaches the lint toolchain via
+    # typescript-eslint, which still requires minimatch ^10. Globs come from our
+    # own config. Drop this once typescript-eslint moves to minimatch 11.
+    - GHSA-g3hv-75wg-m249
