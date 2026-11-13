@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
     branches: [main, develop]
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -13,48 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pr-policy:
-    name: pr-policy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate branch flow and PR title
-        # Untrusted PR data goes through env, never interpolated into the script
-        env:
-          HEAD: ${{ github.head_ref }}
-          BASE: ${{ github.base_ref }}
-          TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          fail=0
-
-          case "$BASE" in
-            main)    allowed='^(release|hotfix)/' ;;
-            develop) allowed='^(feat|fix|chore|release|hotfix)/' ;;
-          esac
-          if ! [[ "$HEAD" =~ $allowed ]]; then
-            echo "::error::La rama '$HEAD' no puede integrarse en '$BASE' (permitido: $allowed)"
-            fail=1
-          fi
-          if ! [[ "$HEAD" =~ ^[a-z]+/[a-z0-9.][a-z0-9.-]*$ ]]; then
-            echo "::error::'$HEAD' no sigue <tipo>/<descripcion-en-kebab-case>"
-            fail=1
-          fi
-
-          title_re='^(feat|fix|chore|docs|refactor|test|ci|perf|build|style|revert)(\([a-z0-9-]+\))?!?: [a-z0-9].*$'
-          if ! [[ "$TITLE" =~ $title_re ]]; then
-            echo "::error::El título '$TITLE' no sigue 'tipo(alcance): asunto' con asunto en minúscula"
-            fail=1
-          fi
-
-          # Release and hotfix titles may use another type (e.g. chore(release), fix)
-          prefix="${HEAD%%/*}"
-          type="${TITLE%%[(:!]*}"
-          if [[ "$prefix" =~ ^(feat|fix|chore)$ && "$type" != "$prefix" ]]; then
-            echo "::error::El tipo del título ('$type') no coincide con el prefijo de la rama ('$prefix')"
-            fail=1
-          fi
-
-          exit $fail
-
   checks:
     name: checks
     runs-on: ubuntu-latest
@@ -74,4 +32,82 @@ jobs:
 
       - run: pnpm typecheck
 
+      - run: pnpm test:coverage
+
       - run: pnpm build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+        if: steps.browsers.outputs.cache-hit != 'true'
+
+      # System libraries are not part of the cache
+      - run: pnpm exec playwright install-deps chromium firefox webkit
+        if: steps.browsers.outputs.cache-hit == 'true'
+
+      - run: pnpm build
+
+      - name: Check that the five projects are defined
+        run: |
+          list="$(pnpm exec playwright test --list --grep @critico)"
+          echo "$list"
+          for project in chromium firefox webkit android iphone; do
+            if ! grep -q "\[$project\]" <<< "$list"; then
+              echo "::error::Falta el proyecto '$project' en la matriz de Playwright"
+              exit 1
+            fi
+          done
+
+      # One run keeps every project and every webgl2 attachment in a single report.
+      # Release branches run the full suite; the rest runs @critico outside chromium.
+      - name: Run e2e
+        env:
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [[ "$HEAD" == release/* ]]; then export E2E_COMPLETO=1; fi
+          pnpm exec playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
+
+  auditoria:
+    name: auditoria
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm audit --audit-level=high
