@@ -179,6 +179,37 @@ describe("MapStage", () => {
     expect(screen.getByText("El mapa está tardando más de lo normal.")).toBeInTheDocument();
   });
 
+  it("retry keeps focus on the map region instead of dropping it", async () => {
+    await renderStage();
+    report("error");
+    const retry = screen.getByRole("button", { name: "Reintentar" });
+    retry.focus();
+    click("Reintentar");
+    await flush();
+    expect(retry).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(region());
+  });
+
+  it("a ready report in the same tick as the timeout wins", async () => {
+    await renderStage();
+    await advance(29_999);
+    // The timer fires before React re-renders and clears it
+    act(() => {
+      fake.onStatusChange?.("ready");
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(region()).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("inserts the error as a new alert instead of mutating the loading status", async () => {
+    await renderStage();
+    const status = screen.getByRole("status");
+    report("error");
+    expect(status).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar el mapa.");
+  });
+
   it("retry twice mounts a single map", async () => {
     await renderStage();
     report("error");
@@ -216,6 +247,8 @@ describe("MapStage", () => {
     expect(status).toHaveTextContent("Probá actualizarlo o activar la aceleración por hardware.");
     expect(fake.mounts).toBe(0);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // The controls could never enable without a map
+    expect(screen.queryByRole("navigation", { name: "Controles del mapa" })).not.toBeInTheDocument();
   });
 
   it("zoom controls are disabled until ready", async () => {

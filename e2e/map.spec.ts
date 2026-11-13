@@ -3,6 +3,8 @@ import messages from "../messages/es-AR.json";
 import { expectNoA11yViolations, expectScreenshot, mockOpenFreeMap, waitForMapReady } from "./helpers";
 
 const t = messages.Map;
+// --color-foreground as getComputedStyle reports it
+const FOREGROUND = "rgb(241, 237, 228)";
 // A class only MapLibre's code writes, so it identifies the chunk that carries the map
 const MAPLIBRE_MARKER = "maplibregl-canvas";
 
@@ -135,21 +137,23 @@ test.describe("with WebGL2", () => {
   test("keyboard order and zoom", async ({ page }) => {
     await page.goto("/");
     await waitForMapReady(page);
+    // The project's ring: 2 px of foreground; the canvas draws it inset because MapLibre clips its overflow
+    const ring = { style: "solid", width: "2px", color: FOREGROUND };
     const stops = [
-      page.getByRole("application", { name: t.region }),
-      page.getByRole("button", { name: t.zoomIn }),
-      page.getByRole("button", { name: t.zoomOut }),
-      page.getByRole("button", { name: t.reset }),
-      ...ATTRIBUTIONS.map(({ name }) => page.getByRole("link", { name })),
+      { locator: page.getByRole("application", { name: t.region }), offset: "-2px" },
+      { locator: page.getByRole("button", { name: t.zoomIn }), offset: "2px" },
+      { locator: page.getByRole("button", { name: t.zoomOut }), offset: "2px" },
+      { locator: page.getByRole("button", { name: t.reset }), offset: "2px" },
+      ...ATTRIBUTIONS.map(({ name }) => ({ locator: page.getByRole("link", { name }), offset: "2px" })),
     ];
-    for (const stop of stops) {
+    for (const { locator, offset } of stops) {
       await page.keyboard.press("Tab");
-      await expect(stop).toBeFocused();
-      const visible = await stop.evaluate((el) => {
+      await expect(locator).toBeFocused();
+      const outline = await locator.evaluate((el) => {
         const s = getComputedStyle(el);
-        return (s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0) || s.boxShadow !== "none";
+        return { style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor, offset: s.outlineOffset };
       });
-      expect(visible, `no visible focus on ${await stop.evaluate((el) => el.outerHTML.slice(0, 80))}`).toBe(true);
+      expect(outline, await locator.evaluate((el) => el.outerHTML.slice(0, 80))).toEqual({ ...ring, offset });
     }
 
     const map = page.locator("[data-map]");

@@ -88,6 +88,7 @@ export function MapStage() {
   const wide = useWideViewport();
   const online = useOnline();
   const mapRef = useRef<MapHandle>(null);
+  const regionRef = useRef<HTMLElement>(null);
   const [key, setKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("loading");
 
@@ -98,7 +99,11 @@ export function MapStage() {
   useEffect(() => {
     if (!mounted || !waiting) return;
     const slow = setTimeout(() => setPhase((p) => (p === "loading" ? "slow" : p)), SLOW_MS);
-    const timeout = setTimeout(() => setPhase(failure()), TIMEOUT_MS);
+    // Functional: a ready report queued in the same tick must not be overwritten
+    const timeout = setTimeout(
+      () => setPhase((p) => (p === "loading" || p === "slow" ? failure() : p)),
+      TIMEOUT_MS,
+    );
     return () => {
       clearTimeout(slow);
       clearTimeout(timeout);
@@ -111,6 +116,8 @@ export function MapStage() {
   }
 
   function retry() {
+    // The focused retry button unmounts with the error; the region outlives every state
+    regionRef.current?.focus({ preventScroll: true });
     setKey((k) => k + 1);
     setPhase("loading");
   }
@@ -125,19 +132,25 @@ export function MapStage() {
           : phase;
   const ready = visible === "ready";
 
+  // Keyed per state so an alert is inserted fresh (and announced) instead of mutating the status node
   const notice =
     visible === "loading" || visible === "slow" ? (
-      <Notice variant="info" title={visible === "slow" ? t("slow") : t("loading")} />
+      <Notice key="loading" variant="info" title={visible === "slow" ? t("slow") : t("loading")} />
     ) : visible === "error" ? (
-      <Notice variant="error" title={t("errorTitle")} action={{ label: t("retry"), onActivate: retry }}>
+      <Notice key="error" variant="error" title={t("errorTitle")} action={{ label: t("retry"), onActivate: retry }}>
         {t("errorBody")}
       </Notice>
     ) : visible === "offline" ? (
-      <Notice variant="error" title={t("offlineTitle")} action={{ label: t("retry"), onActivate: retry }}>
+      <Notice
+        key="offline"
+        variant="error"
+        title={t("offlineTitle")}
+        action={{ label: t("retry"), onActivate: retry }}
+      >
         {t("offlineBody")}
       </Notice>
     ) : visible === "unsupported" ? (
-      <Notice variant="info" title={t("unsupportedTitle")}>
+      <Notice key="unsupported" variant="info" title={t("unsupportedTitle")}>
         {t("unsupportedBody")}
       </Notice>
     ) : null;
@@ -145,7 +158,14 @@ export function MapStage() {
   // Flow order inside the page's bottom column: notice above the controls, so it never pushes them
   return (
     <>
-      <section aria-label={t("region")} aria-busy={!ready} className="pointer-events-auto absolute inset-0">
+      {/* Focusable only from code (retry); the inset ring matches the canvas so it is not clipped */}
+      <section
+        ref={regionRef}
+        tabIndex={-1}
+        aria-label={t("region")}
+        aria-busy={!ready}
+        className="pointer-events-auto absolute inset-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
+      >
         {mounted ? (
           <BaseMap
             key={key}
@@ -157,29 +177,32 @@ export function MapStage() {
         ) : null}
       </section>
       {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
-      <nav aria-label={t("controls")} className="pointer-events-auto relative flex gap-2">
-        <Button
-          variant="secondary"
-          aria-label={t("zoomIn")}
-          disabled={!ready}
-          onClick={() => mapRef.current?.zoomIn()}
-          className="px-0!"
-        >
-          {ICON_PLUS}
-        </Button>
-        <Button
-          variant="secondary"
-          aria-label={t("zoomOut")}
-          disabled={!ready}
-          onClick={() => mapRef.current?.zoomOut()}
-          className="px-0!"
-        >
-          {ICON_MINUS}
-        </Button>
-        <Button variant="secondary" disabled={!ready} onClick={() => mapRef.current?.resetView()}>
-          {t("reset")}
-        </Button>
-      </nav>
+      {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
+      {supported === false ? null : (
+        <nav aria-label={t("controls")} className="pointer-events-auto relative flex gap-2">
+          <Button
+            variant="secondary"
+            aria-label={t("zoomIn")}
+            disabled={!ready}
+            onClick={() => mapRef.current?.zoomIn()}
+            className="px-0!"
+          >
+            {ICON_PLUS}
+          </Button>
+          <Button
+            variant="secondary"
+            aria-label={t("zoomOut")}
+            disabled={!ready}
+            onClick={() => mapRef.current?.zoomOut()}
+            className="px-0!"
+          >
+            {ICON_MINUS}
+          </Button>
+          <Button variant="secondary" disabled={!ready} onClick={() => mapRef.current?.resetView()}>
+            {t("reset")}
+          </Button>
+        </nav>
+      )}
     </>
   );
 }
