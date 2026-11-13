@@ -1,0 +1,126 @@
+"use client";
+
+// Static on purpose: next/dynamic already defers this whole file, so import() here would chain a second download
+import { Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef } from "react";
+import { ARGENTINA_BOUNDS, MAX_BOUNDS, MIN_ZOOM } from "./argentina";
+import { readMapColors } from "./colors";
+import { buildStyle } from "./style";
+
+// Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
+setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
+
+export type MapStatus = "ready" | "error";
+
+export type MapHandle = {
+  zoomIn(): void;
+  zoomOut(): void;
+  resetView(): void;
+};
+
+type Padding = { top: number; right: number; bottom: number; left: number };
+
+type BaseMapProps = {
+  labels: { region: string; keyboardHelp: string };
+  padding: Padding;
+  onStatusChange(status: MapStatus): void;
+  ref?: Ref<MapHandle>;
+};
+
+// Read at call time so a change in the OS setting applies without remounting
+function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const helpId = useId();
+
+  const reportStatus = useEffectEvent((status: MapStatus) => onStatusChange(status));
+
+  // Reads the props of the first render; later changes go through their own effects
+  const createMap = useEffectEvent(
+    (container: HTMLDivElement) =>
+      new MapLibreMap({
+        container,
+        style: buildStyle(readMapColors()),
+        bounds: ARGENTINA_BOUNDS,
+        // Absolute so the fit also sets the map padding and the padding effect starts as a no-op
+        fitBoundsOptions: { padding, absolutePadding: true },
+        maxBounds: MAX_BOUNDS,
+        minZoom: MIN_ZOOM,
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
+        attributionControl: false,
+        locale: { "Map.Title": labels.region },
+      }),
+  );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const map = createMap(container);
+    mapRef.current = map;
+    map.touchZoomRotate.disableRotation();
+
+    // The surrounding section is the landmark; the canvas is the interactive widget inside it
+    const canvas = map.getCanvas();
+    canvas.setAttribute("role", "application");
+    canvas.setAttribute("aria-describedby", helpId);
+
+    const writeZoom = () => container.setAttribute("data-zoom", map.getZoom().toFixed(1));
+
+    let loaded = false;
+    map.on("load", () => {
+      loaded = true;
+      writeZoom();
+      reportStatus("ready");
+    });
+    // After load, a failed tile or glyph leaves a usable map, so only startup errors count
+    map.on("error", () => {
+      if (!loaded) reportStatus("error");
+    });
+    map.on("webglcontextlost", () => reportStatus("error"));
+    map.on("zoomend", writeZoom);
+
+    return () => {
+      mapRef.current = null;
+      map.remove();
+    };
+  }, [helpId]);
+
+  const { top, right, bottom, left } = padding;
+  useEffect(() => {
+    mapRef.current?.setPadding({ top, right, bottom, left });
+  }, [top, right, bottom, left]);
+
+  useImperativeHandle(ref, () => {
+    function zoomBy(delta: number) {
+      const map = mapRef.current;
+      if (!map) return;
+      const zoom = map.getZoom() + delta;
+      if (prefersReducedMotion()) map.jumpTo({ zoom });
+      else map.easeTo({ zoom });
+    }
+    return {
+      zoomIn: () => zoomBy(1),
+      zoomOut: () => zoomBy(-1),
+      resetView: () => {
+        mapRef.current?.fitBounds(ARGENTINA_BOUNDS, { animate: !prefersReducedMotion() });
+      },
+    };
+  }, []);
+
+  return (
+    <>
+      {/* MapLibre owns the container's children, so the help lives beside it */}
+      <div ref={containerRef} data-map className="absolute inset-0 bg-map-sea" />
+      <p id={helpId} className="sr-only">
+        {labels.keyboardHelp}
+      </p>
+    </>
+  );
+}
