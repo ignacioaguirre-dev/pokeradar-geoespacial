@@ -14,7 +14,8 @@ const MAP = "src/map/camera.ts";
 const UI = "src/components/ui/button.tsx";
 const COMPONENT = "src/components/detail/detail.tsx";
 const APP = "src/app/page.tsx";
-const LIB = "src/lib/x.ts";
+const LIB = "src/lib/upstream/x.ts";
+const DATA = "src/data/x.ts";
 
 type Forbidden = readonly [name: string, file: string, code: string, rule: string];
 type Allowed = readonly [name: string, file: string, code: string];
@@ -38,7 +39,18 @@ const forbidden: Forbidden[] = [
   ["testing: nor does a route", APP, `import { render } from "@/testing/render";`, IMPORTS],
   ["components: do not import queries", COMPONENT, `import "@/features/catalog/queries";`, IMPORTS],
   ["app: does not import maplibre", APP, `import "maplibre-gl";`, IMPORTS],
-  ["unlisted folder: does not import maplibre", LIB, `import "maplibre-gl";`, IMPORTS],
+  ["lib: does not import features", LIB, `import "@/features/catalog/types";`, IMPORTS],
+  ["lib: does not import components", LIB, `import "@/components/ui/button";`, IMPORTS],
+  ["lib: does not import map (relative)", LIB, `import "../../map/camera";`, IMPORTS],
+  ["lib: does not import app", LIB, `import "@/app/page";`, IMPORTS],
+  ["lib: does not import data", LIB, `import "@/data/species";`, IMPORTS],
+  ["lib: does not import hooks", LIB, `import "@/hooks/use-example";`, IMPORTS],
+  ["lib: does not import maplibre", LIB, `import "maplibre-gl";`, IMPORTS],
+  ["lib: does not import test utilities", LIB, `import "@/testing/render";`, IMPORTS],
+  ["components: do not import lib (server only)", COMPONENT, `import "@/lib/upstream/response";`, IMPORTS],
+  ["ui: does not import lib", UI, `import "@/lib/upstream/response";`, IMPORTS],
+  ["map: does not import lib", MAP, `import "@/lib/upstream/fetch-json";`, IMPORTS],
+  ["unlisted folder: does not import maplibre", DATA, `import "maplibre-gl";`, IMPORTS],
 
   // Regression: leaks found during review
   ["maplibre subpath", COMPONENT, `import "maplibre-gl/dist/maplibre-gl.css";`, IMPORTS],
@@ -72,7 +84,11 @@ const allowed: Allowed[] = [
   ["app imports queries and components", APP, `import "@/features/catalog/queries"; import "@/components/detail/detail";`],
   ["testing: a test imports test utilities", "src/components/ui/button.test.tsx", `import { render } from "@/testing/render";`],
   ["testing: src/testing imports testing-library", "src/testing/render.tsx", `import "@testing-library/react";`],
-  ["unlisted folder imports react", LIB, `import "react";`],
+  ["lib imports lib, zod and next", LIB, `import "./errors"; import "@/lib/upstream/result"; import "zod"; import "next/cache";`],
+  ["lib: a test imports test utilities", "src/lib/upstream/x.test.ts", `import "@/testing/render";`],
+  ["features imports lib", FEATURES, `import "@/lib/upstream/fetch-json";`],
+  ["app imports lib", "src/app/api/creatures/[id]/route.ts", `import "@/lib/upstream/response";`],
+  ["unlisted folder imports react", DATA, `import "react";`],
 ];
 
 const eslint = new ESLint();

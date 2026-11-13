@@ -29,17 +29,6 @@
   "Button": {
     "loading": "Cargando…"
   },
-  "Habitats": {
-    "cave": "Caverna",
-    "forest": "Bosque",
-    "grassland": "Pradera",
-    "mountain": "Montaña",
-    "rare": "Raro",
-    "rough-terrain": "Terreno agreste",
-    "sea": "Mar",
-    "urban": "Urbano",
-    "waters-edge": "Orilla del agua"
-  },
   "Sites": {
     "buenos-aires": "Buenos Aires",
     "cordoba": "Córdoba",
@@ -173,5 +162,36 @@
       "errorBody": "Revisá tu conexión. Intentos: {attempts, number}",
       "retry": "Reintentar"
     }
+  },
+  "Types": {
+    "normal": "Normal",
+    "fighting": "Lucha",
+    "flying": "Volador",
+    "poison": "Veneno",
+    "ground": "Tierra",
+    "rock": "Roca",
+    "bug": "Bicho",
+    "ghost": "Fantasma",
+    "steel": "Acero",
+    "fire": "Fuego",
+    "water": "Agua",
+    "grass": "Planta",
+    "electric": "Eléctrico",
+    "psychic": "Psíquico",
+    "ice": "Hielo",
+    "dragon": "Dragón",
+    "dark": "Siniestro",
+    "fairy": "Hada"
+  },
+  "Habitats": {
+    "cave": "Cueva",
+    "forest": "Bosque",
+    "grassland": "Pradera",
+    "mountain": "Montaña",
+    "rare": "Raro",
+    "rough-terrain": "Terreno agreste",
+    "sea": "Mar",
+    "urban": "Ciudad",
+    "waters-edge": "Orilla"
   }
 }

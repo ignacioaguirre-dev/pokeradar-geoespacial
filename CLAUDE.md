@@ -31,12 +31,13 @@
 - `queries.ts` lleva `import "server-only"` y sólo se lee desde `src/app`; ningún componente lo importa.
 - `src/hooks`: hooks genéricos sin negocio; lo importan `features`, `components`, `map` y `app` (`domain` no); ellos no importan nada de la app.
 - `src/data`: datos estáticos; `domain` no lo importa.
+- `src/lib`: utilidades de servidor sin negocio (por ejemplo `lib/upstream`: fetch validado, frontera de caché y respuestas de error); lo importan `features` y `app`; no importa `features`, `components`, `map`, `app`, `data` ni `hooks`.
 - `src/map`: el único lugar que importa `maplibre-gl` (también con `import()` dinámico); sólo conoce `domain` y recibe datos por props, sin importar `features`.
 - `src/components`: piezas de interfaz; `components/ui` es presentación pura, sin dominio ni features.
 - `src/app`: rutas y composición; lee `queries` del servidor. Lo que sólo usa una ruta va en `src/app/<ruta>/_components/` (carpeta privada, no es una ruta).
 - `src/i18n`: configuración de next-intl (`request.ts`, tipos de claves); un solo idioma, sin rutas por idioma. El catálogo vive en `messages/es-AR.json`.
 - `src/testing`: utilidades de test (`render` con next-intl); sólo lo importan los tests, nunca la app (lo fuerza `pnpm lint`).
-- Dirección de dependencias: `domain ← features ← components ← app`; `hooks` es transversal (lo importan `features`, `components`, `map` y `app`).
+- Dirección de dependencias: `domain ← features ← components ← app`; `hooks` es transversal (lo importan `features`, `components`, `map` y `app`); `lib` es de servidor: lo importan `features` y `app`, y no lo importan `components` ni `map`.
 - Las fronteras las fuerza `pnpm lint`.
 - Tests: `.test.ts` corre en node y `.test.tsx` en jsdom; si un test de `storage.ts` o `use-*.ts` necesita DOM, va como `.test.tsx`.
 - Antes de escribir un ayudante o una pieza, buscar si ya existe.

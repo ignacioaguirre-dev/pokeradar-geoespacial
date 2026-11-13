@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@/testing/render";
 import { HabitatLegend } from "./habitat-legend";
 
-const PAINTED = ["Bosque", "Pradera", "Orilla del agua", "Montaña", "Terreno agreste", "Mar"];
+const PAINTED = ["Bosque", "Pradera", "Orilla", "Montaña", "Terreno agreste", "Mar"];
 
 describe("HabitatLegend", () => {
   it("starts collapsed", () => {
