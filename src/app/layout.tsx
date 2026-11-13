@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, Chivo, Chivo_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
@@ -26,6 +26,9 @@ const chivoMono = Chivo_Mono({
   display: "swap",
   preload: false,
 });
+
+// Lets the map reach under the notch; safe-area insets keep the UI clear of it
+export const viewport: Viewport = { viewportFit: "cover" };
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Metadata");

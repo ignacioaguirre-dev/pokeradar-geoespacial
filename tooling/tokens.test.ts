@@ -38,6 +38,10 @@ const PAIRS: ReadonlyArray<{
         ],
   ),
   { foreground: ["background"], background: ["habitat", "foreground", "muted"], kind: "text", minimum: 4.5 },
+  // Map labels are text over the land and sea fills
+  { foreground: ["muted", "foreground"], background: ["map-land", "map-sea"], kind: "text", minimum: 4.5 },
+  { foreground: ["map-coast"], background: ["map-sea"], kind: "graphic", minimum: 3 },
+  { foreground: ["map-border"], background: ["map-land"], kind: "graphic", minimum: 3 },
 ];
 
 describe("contrastRatio with the palette", () => {
@@ -57,6 +61,7 @@ describe("token contrast", () => {
       [
         "background", "surface", "foreground", "muted", "structure",
         "control", "habitat", "condition", "energy", "alert",
+        "map-sea", "map-land", "map-coast", "map-border", "map-province",
       ].sort(),
     );
   });
