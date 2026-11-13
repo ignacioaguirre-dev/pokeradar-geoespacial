@@ -86,6 +86,17 @@ describe("BaseMap", () => {
     expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("error");
   });
 
+  it("keeps the error when load follows a startup error", () => {
+    // MapLibre still fires load after the TileJSON fails, leaving a map that never gets tiles
+    const onStatusChange = vi.fn();
+    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    lastMap().emit("error", { error: new Error("source failed") });
+    lastMap().emit("load");
+    lastMap().emit("webglcontextlost");
+    lastMap().emit("webglcontextrestored");
+    expect(onStatusChange).not.toHaveBeenCalledWith("ready");
+  });
+
   it("ignores errors after load", () => {
     const onStatusChange = vi.fn();
     render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);

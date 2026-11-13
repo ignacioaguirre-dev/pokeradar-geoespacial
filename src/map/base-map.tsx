@@ -81,19 +81,23 @@ export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) 
     const writeZoom = () => container.setAttribute("data-zoom", map.getZoom().toFixed(1));
 
     let loaded = false;
+    // MapLibre still fires load after a failed style or source, so a startup error stays until retry
+    let failed = false;
     map.on("load", () => {
       loaded = true;
       writeZoom();
-      reportStatus("ready");
+      if (!failed) reportStatus("ready");
     });
     // After load, a failed tile or glyph leaves a usable map, so only startup errors count
     map.on("error", () => {
-      if (!loaded) reportStatus("error");
+      if (loaded) return;
+      failed = true;
+      reportStatus("error");
     });
     map.on("webglcontextlost", () => reportStatus("error"));
     // MapLibre restores the context itself, and a worker pool restart fires a lost/restored pair
     map.on("webglcontextrestored", () => {
-      if (loaded) reportStatus("ready");
+      if (loaded && !failed) reportStatus("ready");
     });
     map.on("zoomend", writeZoom);
 
