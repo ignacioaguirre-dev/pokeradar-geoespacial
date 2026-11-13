@@ -6,10 +6,10 @@ export const ARGENTINA_BOUNDS: LngLatBoundsLike = [
   [-53.5, -21.7],
 ];
 
-// Room to pan around the country without drifting off into empty ocean
+// Wide Southern Cone: maxBounds clamps the zoom, so tighter limits crop the initial fit on tall screens (checked up to 1920×1080)
 export const MAX_BOUNDS: LngLatBoundsLike = [
-  [-95, -62],
-  [-30, -10],
+  [-125, -70],
+  [0, 5],
 ];
 
 export const MIN_ZOOM = 2;

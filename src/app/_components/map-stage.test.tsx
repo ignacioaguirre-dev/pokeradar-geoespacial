@@ -240,7 +240,7 @@ describe("MapStage", () => {
 
   it("updates the map padding when the viewport widens", async () => {
     await renderStage();
-    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 60, left: 12 });
+    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 152, left: 12 });
     wide = true;
     act(() => mediaListeners.forEach((listener) => listener()));
     expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 120 });

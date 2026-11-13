@@ -18,7 +18,8 @@ const SLOW_MS = 8_000;
 const TIMEOUT_MS = 30_000;
 
 // Module constants keep their identity, so BaseMap only reacts to a real change
-const PADDING_NARROW = { top: 64, right: 12, bottom: 60, left: 12 };
+// Narrow bottom = controls (44) + gap (8) + attribution wrapped to two lines (88) + margin, so Tierra del Fuego stays clear
+const PADDING_NARROW = { top: 64, right: 12, bottom: 152, left: 12 };
 const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 120 };
 
 const WIDE_QUERY = "(min-width: 768px)";
