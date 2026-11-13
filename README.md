@@ -41,3 +41,15 @@ La base oficial se genera en Linux, porque el render de fuentes cambia entre sis
 3. Commitear sólo esa carpeta, con commit firmado.
 
 Las capturas locales de Windows (`e2e/__screenshots__/win32/`) son personales y no se versionan. Playwright usa el puerto 3100, así que un `pnpm dev` en el 3000 no interfiere.
+
+## Navegadores
+
+Chrome y Edge 111+, Safari 16.4+ (macOS e iOS) y Firefox 128+, con WebGL2. Sin WebGL2 la app avisa que el navegador no puede mostrar el mapa.
+
+## Presupuesto de JS inicial
+
+`e2e/bundle.spec.ts` compara el JS inicial de `/` (gzip) con `tooling/initial-js-baseline.json` y falla si crece más de 10 KB o si aparece MapLibre. Si un aumento es intencional, medir de nuevo sobre `develop` con `measureInitialJs` (`e2e/helpers.ts`) y actualizar ese archivo en el mismo PR, explicando por qué.
+
+## Atribuciones
+
+- Mapa: © [OpenFreeMap](https://openfreemap.org) · © [OpenMapTiles](https://openmaptiles.org) · Datos de © [OpenStreetMap](https://www.openstreetmap.org/copyright).
