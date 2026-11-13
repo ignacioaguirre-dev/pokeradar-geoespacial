@@ -52,25 +52,33 @@ const HABITAT_BY_ECOREGION: Record<string, string> = {
   "Patagonian steppe": "rough-terrain",
 };
 
-// Approximate continental shelf (~200 m isobath), from the mouth of the Río de la Plata to south of
-// Tierra del Fuego. The western edge runs inland on purpose: erasing the outline leaves the coast.
-const SHELF: Position[] = [
-  [-56.85, -36.35],
-  [-53.8, -36.0],
-  [-55.0, -37.5],
-  [-56.0, -39.5],
-  [-57.5, -41.5],
-  [-59.0, -43.5],
-  [-60.0, -45.5],
-  [-60.5, -47.5],
-  [-59.0, -49.0],
-  [-57.0, -50.5],
-  [-56.8, -52.0],
-  [-58.0, -53.5],
-  [-59.5, -54.6],
-  [-62.5, -55.0],
-  [-65.0, -55.3],
+// Approximate continental shelf break (~200 m isobath), from Cabo San Antonio to south of Tierra del Fuego.
+// It starts southeast of the Río de la Plata so Uruguay's waters stay out. Smoothed, since a hand-drawn
+// polyline shows its corners in open water.
+const OFFSHORE: Position[] = [
+  [-56.75, -36.25],
+  [-55.7, -36.45],
+  [-54.9, -37.3],
+  [-55.3, -38.5],
+  [-56.0, -39.6],
+  [-57.4, -41.4],
+  [-58.9, -43.4],
+  [-59.9, -45.3],
+  [-60.4, -47.0],
+  [-60.0, -48.3],
+  [-58.4, -49.3],
+  [-57.0, -50.4],
+  [-56.8, -51.6],
+  [-57.6, -53.0],
+  [-59.0, -54.2],
+  [-61.5, -54.9],
+  [-64.0, -55.25],
   [-66.3, -55.05],
+];
+
+// Back north over land on purpose (never smoothed): erasing the outline leaves the real coast.
+// Stays east of the Argentina–Chile line in Tierra del Fuego and the Strait of Magellan.
+const INLAND: Position[] = [
   [-66.6, -54.6],
   [-68.0, -54.0],
   [-68.35, -52.75],
@@ -85,22 +93,31 @@ const SHELF: Position[] = [
   [-62.5, -39.0],
   [-60.0, -38.3],
   [-57.9, -37.5],
-  [-56.85, -36.35],
 ];
 
-// Islas Malvinas: hand-drawn hull of both main islands, a hole so the sea never paints land
-const MALVINAS: Position[] = [
-  [-61.5, -51.2],
-  [-60.3, -50.95],
-  [-58.9, -51.15],
-  [-57.65, -51.4],
-  [-57.65, -51.75],
-  [-58.4, -52.3],
-  [-59.6, -52.45],
-  [-60.7, -52.3],
-  [-61.5, -51.85],
-  [-61.5, -51.2],
-];
+// Islas Malvinas: the outline leaves them out, but RESOLVE draws them as parts of the Patagonian steppe
+const MALVINAS_BOX = { west: -61.6, south: -52.6, east: -57.5, north: -50.8 };
+
+// Chaikin corner cutting on an open polyline: keeps both ends, rounds every corner in between
+function smooth(line: Position[], rounds: number): Position[] {
+  let points = line;
+  for (let round = 0; round < rounds; round++) {
+    const next: Position[] = [points[0]];
+    for (let i = 0; i < points.length - 1; i++) {
+      const [ax, ay] = points[i];
+      const [bx, by] = points[i + 1];
+      next.push([0.75 * ax + 0.25 * bx, 0.75 * ay + 0.25 * by], [0.25 * ax + 0.75 * bx, 0.25 * ay + 0.75 * by]);
+    }
+    next.push(points.at(-1) as Position);
+    points = next;
+  }
+  return points;
+}
+
+function shelf(): Position[] {
+  const ring = [...smooth(OFFSHORE, 3), ...INLAND];
+  return [...ring, ring[0]];
+}
 
 function insideEnvelope(ring: Position[]): boolean {
   return ring.every(([lng, lat]) => lng >= WEST && lng <= EAST && lat >= SOUTH && lat <= NORTH);
@@ -119,6 +136,20 @@ function localPolygons(feature: Feature): Polygon[] {
     return polygons.flatMap((p) => p.filter(insideEnvelope).map((ring) => [ring]));
   }
   return polygons;
+}
+
+function inMalvinasBox(polygon: Polygon): boolean {
+  const { west, south, east, north } = MALVINAS_BOX;
+  return polygon[0].every(([lng, lat]) => lng >= west && lng <= east && lat >= south && lat <= north);
+}
+
+function malvinas(source: FeatureCollection): FeatureCollection {
+  const coordinates = source.features.flatMap((f) => (f.geometry ? polygonsOf(f.geometry) : [])).filter(inMalvinasBox);
+  if (coordinates.length === 0) throw new Error("RESOLVE no longer draws the Islas Malvinas");
+  return {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", properties: {}, geometry: { type: "MultiPolygon", coordinates } }],
+  };
 }
 
 function toHabitats(source: FeatureCollection): FeatureCollection {
@@ -140,9 +171,7 @@ const OUTLINE: FeatureCollection = {
 
 const SEA: FeatureCollection = {
   type: "FeatureCollection",
-  features: [
-    { type: "Feature", properties: { habitat: "sea" }, geometry: { type: "Polygon", coordinates: [SHELF, MALVINAS] } },
-  ],
+  features: [{ type: "Feature", properties: { habitat: "sea" }, geometry: { type: "Polygon", coordinates: [shelf()] } }],
 };
 
 async function run(commands: string, input: Record<string, FeatureCollection>): Promise<FeatureCollection> {
@@ -163,7 +192,11 @@ async function main() {
       `-filter-slivers min-area=40km2 -clean ${OUT}`,
     { "eco.json": toHabitats(ecoregions), "clip.json": OUTLINE },
   );
-  const sea = await run(`-i sea.json -erase clip.json -clean ${OUT}`, { "sea.json": SEA, "clip.json": OUTLINE });
+  // The sea never paints land: neither the mainland nor the islands
+  const sea = await run(
+    `-i sea.json -erase clip.json -erase islands.json -simplify 60% keep-shapes -filter-slivers min-area=40km2 -clean ${OUT}`,
+    { "sea.json": SEA, "clip.json": OUTLINE, "islands.json": malvinas(ecoregions) },
+  );
 
   const collection: FeatureCollection = {
     type: "FeatureCollection",
