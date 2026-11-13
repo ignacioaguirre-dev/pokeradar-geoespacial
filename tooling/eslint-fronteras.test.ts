@@ -27,6 +27,8 @@ const prohibidos: Prohibido[] = [
   ["mapa: no importa features", MAPA, `import "@/features/cercas/storage";`, IMPORTS],
   ["ui: no importa dominio", UI, `import "@/domain/cerca";`, IMPORTS],
   ["componentes: no importa app", COMPONENTE, `import "@/app/page";`, IMPORTS],
+  ["testing: la app no importa utilidades de test", UI, `import "@/testing/render";`, IMPORTS],
+  ["testing: ni desde una ruta", APP, `import { render } from "@/testing/render";`, IMPORTS],
   ["componentes: no importa queries", COMPONENTE, `import "@/features/catalogo/queries";`, IMPORTS],
   ["app: no importa maplibre", APP, `import "maplibre-gl";`, IMPORTS],
   ["carpeta no listada: no importa maplibre", LIB, `import "maplibre-gl";`, IMPORTS],
@@ -56,6 +58,8 @@ const permitidos: Permitido[] = [
   ["ui importa ui", UI, `import "@/components/ui/otro";`],
   ["componente importa dominio, mapa y storage", COMPONENTE, `import "@/domain/cerca"; import "@/map/camara"; import "@/features/cercas/storage";`],
   ["app importa queries y componentes", APP, `import "@/features/catalogo/queries"; import "@/components/detalle/detalle";`],
+  ["testing: un test importa utilidades de test", "src/components/ui/boton.test.tsx", `import { render } from "@/testing/render";`],
+  ["testing: src/testing importa testing-library", "src/testing/render.tsx", `import "@testing-library/react";`],
   ["carpeta no listada importa react", LIB, `import "react";`],
 ];
 

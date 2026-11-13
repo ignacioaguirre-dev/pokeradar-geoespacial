@@ -156,10 +156,31 @@ const fronteras = [
   { files: ["src/**"], ignores: ["src/map/**"], rules: maplibreDinamico },
 ];
 
+// Test utilities are for tests only: overlay every folder block with the ban, except tests and src/testing.
+// The overlay comes later, so test files keep the original block and non-test files get the extra pattern.
+const sinTesting = {
+  group: carpeta("testing"),
+  message: "src/testing sólo se importa desde tests.",
+};
+const soloTests = fronteras
+  .filter((b) => b.rules["no-restricted-imports"] && !b.files.includes("src/domain/**"))
+  .map((b) => {
+    const [nivel, opciones] = b.rules["no-restricted-imports"];
+    return {
+      files: b.files,
+      ignores: [...(b.ignores ?? []), "src/**/*.test.{ts,tsx}", "src/testing/**"],
+      rules: {
+        ...b.rules,
+        "no-restricted-imports": [nivel, { ...opciones, patterns: [...opciones.patterns, sinTesting] }],
+      },
+    };
+  });
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   ...fronteras,
+  ...soloTests,
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
