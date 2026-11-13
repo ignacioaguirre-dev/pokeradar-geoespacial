@@ -1,3 +1,4 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { areaKm2 } from "./area";
 import type { Ring } from "./types";
@@ -42,5 +43,27 @@ describe("areaKm2", () => {
         [1, 1],
       ]),
     ).toBe(0);
+  });
+});
+
+// Any simple or self-crossing ring works here: the invariance is about vertex order, not shape.
+const ring = fc.array(
+  fc.tuple(fc.double({ min: -73, max: -53, noNaN: true }), fc.double({ min: -55, max: -22, noNaN: true })),
+  { minLength: 3, maxLength: 12 },
+);
+
+describe("areaKm2 properties", () => {
+  it("does not change when the vertices are rotated or reversed", () => {
+    fc.assert(
+      fc.property(ring, fc.nat(), (vertices, shift) => {
+        const base = areaKm2(vertices);
+        const k = shift % vertices.length;
+        const rotated = [...vertices.slice(k), ...vertices.slice(0, k)];
+        const tolerance = Math.max(base, 1) * 1e-9;
+        expect(Math.abs(areaKm2(rotated) - base)).toBeLessThanOrEqual(tolerance);
+        expect(Math.abs(areaKm2([...vertices].reverse()) - base)).toBeLessThanOrEqual(tolerance);
+      }),
+      { seed: 42 },
+    );
   });
 });
