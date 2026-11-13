@@ -88,9 +88,10 @@ export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) 
       writeZoom();
       if (!failed) reportStatus("ready");
     });
-    // After load, a failed tile or glyph leaves a usable map, so only startup errors count
-    map.on("error", () => {
-      if (loaded) return;
+    // Only a style or source failure before load breaks the map; after load, or for a single tile
+    // (its event carries `tile`), MapLibre retries and the map stays usable
+    map.on("error", (event) => {
+      if (loaded || "tile" in event) return;
       failed = true;
       reportStatus("error");
     });

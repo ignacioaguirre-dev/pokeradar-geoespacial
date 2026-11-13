@@ -97,6 +97,14 @@ describe("BaseMap", () => {
     expect(onStatusChange).not.toHaveBeenCalledWith("ready");
   });
 
+  it("ignores a single tile failure before load", () => {
+    const onStatusChange = vi.fn();
+    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    lastMap().emit("error", { error: new Error("tile failed"), tile: {} });
+    lastMap().emit("load");
+    expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("ready");
+  });
+
   it("ignores errors after load", () => {
     const onStatusChange = vi.fn();
     render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
