@@ -15,6 +15,11 @@ export const TOKENS: readonly Token[] = [
   { name: "condition", swatch: "bg-condition" },
   { name: "energy", swatch: "bg-energy" },
   { name: "alert", swatch: "bg-alert" },
+  { name: "map-sea", swatch: "bg-map-sea" },
+  { name: "map-land", swatch: "bg-map-land" },
+  { name: "map-coast", swatch: "bg-map-coast" },
+  { name: "map-border", swatch: "bg-map-border" },
+  { name: "map-province", swatch: "bg-map-province" },
 ];
 
 const DISPLAY = "font-display font-stretch-condensed font-bold uppercase";

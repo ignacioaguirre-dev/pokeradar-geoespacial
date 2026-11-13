@@ -13,6 +13,11 @@
   --color-condition: #9fd6e3; /* Perito Moreno glacier ice */
   --color-energy: #c8233a; /* ceibo flower, national flower */
   --color-alert: #e9744e; /* Talampaya sandstone */
+  --color-map-sea: #050b13; /* Mar Argentino deep water */
+  --color-map-land: #2a261e; /* Patagonian steppe gravel, clear night */
+  --color-map-coast: #7c8a8e; /* Península Valdés reef at low tide */
+  --color-map-border: #857c6e; /* basalt under moonlight */
+  --color-map-province: #4d473c; /* wet basalt */
 
   --radius-control: 2px;
   --radius-panel: 4px;

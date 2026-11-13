@@ -42,7 +42,12 @@
         "habitat": "Ocre de la puna jujeña",
         "condition": "Hielo del Perito Moreno",
         "energy": "Flor de ceibo",
-        "alert": "Piedra de Talampaya"
+        "alert": "Piedra de Talampaya",
+        "map-sea": "Mar Argentino profundo",
+        "map-land": "Ripio de la estepa patagónica, noche clara",
+        "map-coast": "Restinga de Península Valdés en bajamar",
+        "map-border": "Basalto bajo luna",
+        "map-province": "Basalto húmedo"
       },
       "usage": {
         "base": "Fondo base",

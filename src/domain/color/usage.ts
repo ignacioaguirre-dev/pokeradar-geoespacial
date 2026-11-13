@@ -16,6 +16,11 @@ export const COLOR_USAGE = {
   condition: { kind: "text", minimum: 4.5 },
   energy: { kind: "graphic", minimum: 3 },
   alert: { kind: "text", minimum: 4.5 },
+  "map-sea": { kind: "decorative", minimum: null },
+  "map-land": { kind: "decorative", minimum: null },
+  "map-coast": { kind: "decorative", minimum: null },
+  "map-border": { kind: "decorative", minimum: null },
+  "map-province": { kind: "decorative", minimum: null },
 } as const satisfies Record<string, ColorUsage>;
 
 export type ColorToken = keyof typeof COLOR_USAGE;
