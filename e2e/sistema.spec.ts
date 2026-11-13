@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { capturar, esperarSinViolaciones } from "./ayudas";
+import { expectNoA11yViolations, expectScreenshot } from "./helpers";
 
 // Computed token values only appear after hydration
 async function esperarColores(page: Page): Promise<void> {
@@ -11,7 +11,7 @@ test("/sistema carga y es accesible @critico", async ({ page }) => {
   await expect(page).toHaveTitle("Sistema · PokeRadar Geoespacial");
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await esperarColores(page);
-  await esperarSinViolaciones(page);
+  await expectNoA11yViolations(page);
 });
 
 test("/sistema no es indexable", async ({ page }) => {
@@ -92,7 +92,7 @@ test("/sistema no cambió de aspecto @visual", async ({ page }) => {
   await page.goto("/sistema");
   await page.evaluate(() => document.fonts.ready);
   await esperarColores(page);
-  await capturar(page, "sistema");
+  await expectScreenshot(page, "sistema");
 });
 
 test("/sistema no desborda a lo ancho", async ({ page }) => {
