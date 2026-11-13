@@ -33,7 +33,7 @@
 - `src/data`: datos estáticos; `domain` no lo importa.
 - `src/map`: el único lugar que importa `maplibre-gl` (también con `import()` dinámico); sólo conoce `domain` y recibe datos por props, sin importar `features`.
 - `src/components`: piezas de interfaz; `components/ui` es presentación pura, sin dominio ni features.
-- `src/app`: rutas y composición; lee `queries` del servidor. Lo que sólo usa una ruta va en `src/app/<ruta>/_componentes/` (carpeta privada, no es una ruta).
+- `src/app`: rutas y composición; lee `queries` del servidor. Lo que sólo usa una ruta va en `src/app/<ruta>/_components/` (carpeta privada, no es una ruta).
 - `src/i18n`: configuración de next-intl (`request.ts`, tipos de claves); un solo idioma, sin rutas por idioma. El catálogo vive en `messages/es-AR.json`.
 - `src/testing`: utilidades de test (`render` con next-intl); sólo lo importan los tests, nunca la app (lo fuerza `pnpm lint`).
 - Dirección de dependencias: `domain ← features ← components ← app`; `hooks` es transversal (lo importan `features`, `components`, `map` y `app`).
@@ -48,7 +48,7 @@
 - Entrada y salida (`src/features`) → unitario con `fetch` simulado: validación de la respuesta externa, mapeo y cada error. Ningún test pega contra PokéAPI, Open-Meteo o USGS reales.
 - Componentes → Testing Library por rol y texto visible, nunca por clases o estructura. Cada estado de la spec (cargando, error con reintento, vacío) tiene su caso.
 - Flujos completos y lo que depende del navegador (mapa, WebGL, red caída, teclado) → E2E con Playwright. El mapa se afirma por lo observable (marcadores, lista, lectura), nunca por píxeles del lienzo.
-- `@critico` sólo en los flujos que tienen que andar en los cinco perfiles; el resto corre en chromium.
+- `@critical` sólo en los flujos que tienen que andar en los cinco perfiles; el resto corre en chromium.
 - Una regla transversal se protege con un test de conformidad (ejemplo: `tooling/import-boundaries.test.ts`): un caso prohibido y uno permitido por regla, más cada fuga que se haya encontrado.
 - Todo fix de bug entra con el test que lo reproduce (en rojo antes, en verde después).
 - Un camino de error se testea afirmando lo que ve el usuario (mensaje, reintento), no sólo que algo falló.

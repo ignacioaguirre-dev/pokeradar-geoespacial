@@ -29,7 +29,7 @@ La app queda disponible en http://localhost:3000.
 | `pnpm test:watch`    | Tests en modo watch           |
 | `pnpm test:coverage` | Tests con umbral de cobertura |
 | `pnpm e2e`           | Playwright en chromium        |
-| `pnpm e2e:critico`   | Tests `@critico` en los 5 perfiles |
+| `pnpm e2e:critical`  | Tests `@critical` en los 5 perfiles |
 | `pnpm e2e:screenshots` | Regenera la base visual de Linux (Docker) |
 
 ## Base de capturas visuales

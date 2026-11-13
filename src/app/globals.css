@@ -3,39 +3,39 @@
 /* Palette drawn from Argentine biomes; every color token lives here only. */
 @theme static {
   --color-*: initial; /* closes the default palette so only our tokens exist */
-  --color-fondo: #0b0e12; /* high Andean plateau (puna) night */
-  --color-superficie: #13171c; /* raised panel over the puna night */
-  --color-texto: #f1ede4; /* Salinas Grandes salt flat */
-  --color-texto-tenue: #a49c8e; /* salt flat in shade */
-  --color-estructura: #3b3832; /* Patagonian plateau basalt */
-  --color-borde-control: #7a7266; /* weathered basalt edge */
+  --color-background: #0b0e12; /* high Andean plateau (puna) night */
+  --color-surface: #13171c; /* raised panel over the puna night */
+  --color-foreground: #f1ede4; /* Salinas Grandes salt flat */
+  --color-muted: #a49c8e; /* salt flat in shade */
+  --color-structure: #3b3832; /* Patagonian plateau basalt */
+  --color-control: #7a7266; /* weathered basalt edge */
   --color-habitat: #d9a55b; /* Jujuy puna ochre */
-  --color-condicion: #9fd6e3; /* Perito Moreno glacier ice */
-  --color-energia: #c8233a; /* ceibo flower, national flower */
-  --color-alerta: #e9744e; /* Talampaya sandstone */
+  --color-condition: #9fd6e3; /* Perito Moreno glacier ice */
+  --color-energy: #c8233a; /* ceibo flower, national flower */
+  --color-alert: #e9744e; /* Talampaya sandstone */
 
   --radius-control: 2px;
   --radius-panel: 4px;
 
   /* Display steps scale toward desktop; the mobile size is the floor */
-  --text-etiqueta: 0.75rem;
-  --text-etiqueta--line-height: 1.3;
-  --text-cuerpo: 0.9375rem;
-  --text-cuerpo--line-height: 1.5;
-  --text-subtitulo: 1.125rem;
-  --text-subtitulo--line-height: 1.35;
-  --text-titulo: clamp(1.5rem, 1.25rem + 1vw, 1.875rem);
-  --text-titulo--line-height: 1.2;
-  --text-cabecera: clamp(2.25rem, 1.7rem + 2.2vw, 3.25rem);
-  --text-cabecera--line-height: 1.1;
-  --text-portada: clamp(3.5rem, 2.4rem + 4.4vw, 5.5rem);
-  --text-portada--line-height: 1.05;
+  --text-label: 0.75rem;
+  --text-label--line-height: 1.3;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5;
+  --text-subtitle: 1.125rem;
+  --text-subtitle--line-height: 1.35;
+  --text-title: clamp(1.5rem, 1.25rem + 1vw, 1.875rem);
+  --text-title--line-height: 1.2;
+  --text-headline: clamp(2.25rem, 1.7rem + 2.2vw, 3.25rem);
+  --text-headline--line-height: 1.1;
+  --text-hero: clamp(3.5rem, 2.4rem + 4.4vw, 5.5rem);
+  --text-hero--line-height: 1.05;
 
-  --duracion-rapida: 120ms;
-  --duracion-media: 240ms;
-  --duracion-barrido: 900ms;
-  --curva-salida: cubic-bezier(0.16, 1, 0.3, 1);
-  --curva-entrada-salida: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration-medium: 240ms;
+  --duration-sweep: 900ms;
+  --curve-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --curve-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 @theme inline {
@@ -50,37 +50,37 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --duracion-rapida: 0ms;
-    --duracion-media: 0ms;
-    --duracion-barrido: 0ms;
+    --duration-fast: 0ms;
+    --duration-medium: 0ms;
+    --duration-sweep: 0ms;
   }
 }
 
 /* Native <meter> look; each engine needs its own pseudo-elements */
 @layer components {
-  meter.medidor-energia {
+  meter.energy-meter {
     appearance: none;
     display: block;
     width: 100%;
     height: 0.5rem;
     border: 0;
     border-radius: var(--radius-control);
-    background: var(--color-estructura);
+    background: var(--color-structure);
   }
-  meter.medidor-energia::-webkit-meter-bar {
+  meter.energy-meter::-webkit-meter-bar {
     height: 0.5rem;
     border: 0;
     border-radius: var(--radius-control);
-    background: var(--color-estructura);
+    background: var(--color-structure);
   }
-  meter.medidor-energia::-webkit-meter-optimum-value,
-  meter.medidor-energia::-webkit-meter-suboptimum-value,
-  meter.medidor-energia::-webkit-meter-even-less-good-value {
+  meter.energy-meter::-webkit-meter-optimum-value,
+  meter.energy-meter::-webkit-meter-suboptimum-value,
+  meter.energy-meter::-webkit-meter-even-less-good-value {
     border-radius: var(--radius-control);
-    background: var(--color-energia);
+    background: var(--color-energy);
   }
-  meter.medidor-energia::-moz-meter-bar {
+  meter.energy-meter::-moz-meter-bar {
     border-radius: var(--radius-control);
-    background: var(--color-energia);
+    background: var(--color-energy);
   }
 }

@@ -62,7 +62,7 @@ const allowed: Allowed[] = [
   ["domain: vitest in a tsx test", DOMAIN_TEST_TSX, `import { expect } from "vitest";`],
   ["features imports domain and react", FEATURES, `import "@/domain/fence"; import "react";`],
   ["hooks: imports react and other hooks", HOOKS, `import "react"; import "./use-other"; import "@/hooks/use-other";`],
-  ["route: _componentes imports hooks, domain and ui", "src/app/sistema/_componentes/colores.tsx", `import "@/hooks/use-example"; import "@/domain/color/contraste"; import "@/components/ui/boton";`],
+  ["route: _components imports hooks, domain and ui", "src/app/system/_components/colors.tsx", `import "@/hooks/use-example"; import "@/domain/color/contrast"; import "@/components/ui/button";`],
   ["map imports maplibre (static and dynamic)", MAP, `import "maplibre-gl"; await import("maplibre-gl");`],
   ["ui imports ui", UI, `import "@/components/ui/another";`],
   ["component imports domain, map and storage", COMPONENT, `import "@/domain/fence"; import "@/map/camera"; import "@/features/fences/storage";`],
