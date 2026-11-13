@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, type Route } from "@playwright/test";
+import { gzipSync } from "node:zlib";
+import { expect, type APIRequestContext, type Page, type Route } from "@playwright/test";
 import messages from "../messages/es-AR.json";
 
 export async function expectNoA11yViolations(page: Page): Promise<void> {
@@ -60,4 +61,22 @@ export async function waitForMapReady(page: Page): Promise<void> {
   await expect(page.getByRole("region", { name: messages.Map.region })).toHaveAttribute("aria-busy", "false", {
     timeout: 30_000,
   });
+}
+
+// Sums the gzip size of every <script src> in the page's HTML, so it needs no browser
+export async function measureInitialJs(
+  request: APIRequestContext,
+  path = "/",
+): Promise<{ gzipBytes: number; scripts: string[] }> {
+  const page = await request.get(path);
+  const html = await page.text();
+  const scripts = [...html.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map(
+    (match) => new URL(match[1].replaceAll("&amp;", "&"), page.url()).href,
+  );
+  let gzipBytes = 0;
+  for (const url of new Set(scripts)) {
+    const body = await (await request.get(url)).body();
+    gzipBytes += gzipSync(body).length;
+  }
+  return { gzipBytes, scripts };
 }
