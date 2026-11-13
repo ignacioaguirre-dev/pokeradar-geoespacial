@@ -1,5 +1,5 @@
 import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
-import { ARGENTINA_OUTLINE } from "./argentina-outline";
+import { ARGENTINA_OUTLINE } from "@/data/argentina-outline";
 import type { MapColors } from "./colors";
 
 const SOURCE = "openmaptiles";
