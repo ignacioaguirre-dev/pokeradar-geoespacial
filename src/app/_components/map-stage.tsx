@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import type { MapHandle, MapStatus } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
+import { HabitatLegend } from "./habitat-legend";
 
-// The notices come from MapStage, so the chunk shows nothing while it downloads
-const BaseMap = dynamic(() => import("@/map/base-map").then((m) => m.BaseMap), {
+// The notices come from MapStage, so the chunk shows nothing while it downloads.
+// HabitatMap carries the habitat data, so it rides in this deferred chunk instead of the initial JS
+const BaseMap = dynamic(() => import("./habitat-map").then((m) => m.HabitatMap), {
   ssr: false,
   loading: () => null,
 });
@@ -18,8 +20,9 @@ const SLOW_MS = 8_000;
 const TIMEOUT_MS = 30_000;
 
 // Module constants keep their identity, so BaseMap only reacts to a real change
-// Narrow bottom = controls (44) + gap (8) + attribution wrapped to two lines (88) + margin, so Tierra del Fuego stays clear
-const PADDING_NARROW = { top: 64, right: 12, bottom: 152, left: 12 };
+// Narrow bottom = legend row (44) + gap (8) + controls (44) + gap (8) + attribution wrapped to two lines (88) + margin,
+// so Tierra del Fuego stays clear
+const PADDING_NARROW = { top: 64, right: 12, bottom: 204, left: 12 };
 const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 120 };
 
 const WIDE_QUERY = "(min-width: 768px)";
@@ -179,7 +182,11 @@ export function MapStage() {
       {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
       {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
       {supported === false ? null : (
-        <nav aria-label={t("controls")} className="pointer-events-auto relative flex gap-2">
+        // Legend left, controls right: the same order on screen and for the keyboard.
+        // On phones they do not fit side by side: the legend keeps the first line and the controls wrap below
+        <div className="flex w-full flex-wrap items-end justify-between gap-2">
+          <HabitatLegend disabled={!ready} />
+          <nav aria-label={t("controls")} className="pointer-events-auto relative ml-auto flex shrink-0 gap-2">
           <Button
             variant="secondary"
             aria-label={t("zoomIn")}
@@ -201,7 +208,8 @@ export function MapStage() {
           <Button variant="secondary" disabled={!ready} onClick={() => mapRef.current?.resetView()}>
             {t("reset")}
           </Button>
-        </nav>
+          </nav>
+        </div>
       )}
     </>
   );

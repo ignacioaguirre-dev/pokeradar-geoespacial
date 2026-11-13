@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BaseMap } from "./base-map";
+import type { HabitatCollection } from "./habitats";
 
 type Handler = (event?: unknown) => void;
 
@@ -14,7 +15,13 @@ const fake = vi.hoisted(() => {
     touchZoomRotate = { disableRotation: vi.fn() };
     canvas: HTMLCanvasElement;
 
-    constructor(public options: { container: HTMLElement; locale: Record<string, string> }) {
+    constructor(
+      public options: {
+        container: HTMLElement;
+        locale: Record<string, string>;
+        style: { sources: Record<string, { data?: unknown }> };
+      },
+    ) {
       if (FakeMap.throwOnCreate) throw new Error("Failed to initialize WebGL");
       // MapLibre appends its own canvas, names it from the locale and marks it as a region
       this.canvas = document.createElement("canvas");
@@ -54,10 +61,19 @@ vi.mock("./colors", () => ({
     province: "marker-province",
     label: "marker-label",
     city: "marker-city",
+    biome: {
+      forest: "marker-forest",
+      grassland: "marker-grassland",
+      "waters-edge": "marker-waters-edge",
+      mountain: "marker-mountain",
+      "rough-terrain": "marker-rough-terrain",
+      sea: "marker-sea-habitat",
+    },
   }),
 }));
 
 const labels = { region: "Mapa de Argentina", keyboardHelp: "Usá las flechas para mover el mapa." };
+const habitats: HabitatCollection = { type: "FeatureCollection", features: [] };
 const padding = { top: 10, right: 20, bottom: 30, left: 40 };
 
 function lastMap() {
@@ -72,16 +88,21 @@ describe("BaseMap", () => {
     fake.FakeMap.throwOnCreate = false;
   });
 
+  it("hands the habitats to the style", () => {
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={vi.fn()} />);
+    expect(lastMap().options.style.sources.habitats.data).toBe(habitats);
+  });
+
   it("reports ready on load", () => {
     const onStatusChange = vi.fn();
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     lastMap().emit("load");
     expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("ready");
   });
 
   it("reports error before load", () => {
     const onStatusChange = vi.fn();
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     lastMap().emit("error", { error: new Error("style failed") });
     expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("error");
   });
@@ -89,7 +110,7 @@ describe("BaseMap", () => {
   it("keeps the error when load follows a startup error", () => {
     // MapLibre still fires load after the TileJSON fails, leaving a map that never gets tiles
     const onStatusChange = vi.fn();
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     lastMap().emit("error", { error: new Error("source failed") });
     lastMap().emit("load");
     lastMap().emit("webglcontextlost");
@@ -99,7 +120,7 @@ describe("BaseMap", () => {
 
   it("ignores a single tile failure before load", () => {
     const onStatusChange = vi.fn();
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     lastMap().emit("error", { error: new Error("tile failed"), tile: {} });
     lastMap().emit("load");
     expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("ready");
@@ -107,7 +128,7 @@ describe("BaseMap", () => {
 
   it("ignores errors after load", () => {
     const onStatusChange = vi.fn();
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     lastMap().emit("load");
     lastMap().emit("error", { error: new Error("tile failed") });
     expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("ready");
@@ -115,7 +136,7 @@ describe("BaseMap", () => {
 
   it("reports error when the WebGL context is lost", () => {
     const onStatusChange = vi.fn();
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     lastMap().emit("load");
     lastMap().emit("webglcontextlost");
     expect(onStatusChange).toHaveBeenLastCalledWith("error");
@@ -123,7 +144,7 @@ describe("BaseMap", () => {
 
   it("reports ready again when the WebGL context is restored", () => {
     const onStatusChange = vi.fn();
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     lastMap().emit("load");
     lastMap().emit("webglcontextlost");
     expect(onStatusChange).toHaveBeenLastCalledWith("error");
@@ -134,13 +155,13 @@ describe("BaseMap", () => {
   it("reports error when the map cannot be created", () => {
     fake.FakeMap.throwOnCreate = true;
     const onStatusChange = vi.fn();
-    const { unmount } = render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    const { unmount } = render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={onStatusChange} />);
     expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("error");
     expect(() => unmount()).not.toThrow();
   });
 
   it("removes the map on unmount", () => {
-    const { unmount } = render(<BaseMap labels={labels} padding={padding} onStatusChange={vi.fn()} />);
+    const { unmount } = render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={vi.fn()} />);
     unmount();
     expect(lastMap().removed).toBe(1);
   });
@@ -148,9 +169,9 @@ describe("BaseMap", () => {
   it("does not recreate the map when props change", () => {
     const first = vi.fn();
     const second = vi.fn();
-    const { rerender } = render(<BaseMap labels={labels} padding={padding} onStatusChange={first} />);
+    const { rerender } = render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={first} />);
     const next = { top: 1, right: 2, bottom: 3, left: 4 };
-    rerender(<BaseMap labels={labels} padding={next} onStatusChange={second} />);
+    rerender(<BaseMap habitats={habitats} labels={labels} padding={next} onStatusChange={second} />);
     expect(fake.FakeMap.instances).toHaveLength(1);
     expect(lastMap().setPadding).toHaveBeenLastCalledWith(next);
     lastMap().emit("load");
@@ -159,7 +180,7 @@ describe("BaseMap", () => {
   });
 
   it("exposes the keyboard help on the canvas", () => {
-    render(<BaseMap labels={labels} padding={padding} onStatusChange={vi.fn()} />);
+    render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={vi.fn()} />);
     const canvas = screen.getByRole("application", { name: labels.region });
     expect(canvas).toHaveAccessibleDescription(labels.keyboardHelp);
   });

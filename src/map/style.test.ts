@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { HabitatCollection } from "./habitats";
 import type { MapColors } from "./colors";
 import { ARGENTINA_OUTLINE } from "@/data/argentina-outline";
 import { buildStyle } from "./style";
@@ -12,16 +13,35 @@ const COLORS: MapColors = {
   province: "marker-province",
   label: "marker-label",
   city: "marker-city",
+  biome: {
+    forest: "marker-forest",
+    grassland: "marker-grassland",
+    "waters-edge": "marker-waters-edge",
+    mountain: "marker-mountain",
+    "rough-terrain": "marker-rough-terrain",
+    sea: "marker-sea-habitat",
+  },
 };
 
-const style = buildStyle(COLORS);
+const HABITATS: HabitatCollection = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: { habitat: "forest" },
+      geometry: { type: "Polygon", coordinates: [[[-65, -23], [-64, -23], [-64, -24], [-65, -23]]] },
+    },
+  ],
+};
+
+const style = buildStyle(COLORS, HABITATS);
 const layers = style.layers;
 
 describe("buildStyle", () => {
   it("every layer reads an OpenMapTiles source-layer", () => {
     const allowed = ["water", "waterway", "boundary", "water_name", "place"];
     for (const layer of layers) {
-      if (layer.type === "background") continue;
+      if (layer.type === "background" || ("source" in layer && layer.source === "habitats")) continue;
       expect(
         "source-layer" in layer ? layer["source-layer"] : undefined,
         layer.id,
@@ -42,10 +62,16 @@ describe("buildStyle", () => {
   });
 
   it("uses only the given colors", () => {
-    const markers = new Set(Object.values(COLORS));
+    const { biome, ...base } = COLORS;
+    const markers = new Set([...Object.values(base), ...Object.values(biome)]);
     const used = new Set<string>();
+    // A match expression mixes operators and habitat names with its colors: those are not colors
+    const notColors = new Set(["match", "get", "habitat", ...Object.keys(biome)]);
     JSON.stringify(style, (key, value: unknown) => {
-      if (/color$/.test(key)) used.add(String(value));
+      if (/color$/.test(key)) {
+        const values = Array.isArray(value) ? value.flat(Infinity) : [value];
+        for (const v of values) if (!notColors.has(String(v))) used.add(String(v));
+      }
       return value;
     });
     expect(used.size).toBeGreaterThan(0);
@@ -63,6 +89,58 @@ describe("buildStyle", () => {
       for (const font of fonts as string[])
         expect(served, layer.id).toContain(font);
     }
+  });
+});
+
+describe("habitat layers", () => {
+  const index = (id: string) => layers.findIndex((l) => l.id === id);
+  const land = layers.find((l) => l.id === "habitats");
+  const sea = layers.find((l) => l.id === "habitat-sea");
+
+  it("feeds the given habitats through a GeoJSON source", () => {
+    expect(style.sources.habitats).toEqual({ type: "geojson", data: HABITATS });
+  });
+
+  it("paints land habitats over the land and under the water", () => {
+    expect(land?.type).toBe("fill");
+    expect(index("habitats")).toBeGreaterThan(index("background"));
+    expect(index("habitats")).toBeLessThan(index("water"));
+  });
+
+  // The shelf sea sits on the base water, still under the coastline, borders and labels
+  it("paints the sea habitat over the water and under the coastline", () => {
+    expect(sea?.type).toBe("fill");
+    expect(index("habitat-sea")).toBeGreaterThan(index("water"));
+    expect(index("habitat-sea")).toBeLessThan(index("coastline"));
+  });
+
+  it.each(["habitats", "habitat-sea"])("%s is muted to 0.35 opacity", (id) => {
+    const layer = layers.find((l) => l.id === id);
+    if (layer?.type !== "fill") throw new Error(`missing fill layer ${id}`);
+    expect(layer.paint?.["fill-opacity"]).toBe(0.35);
+  });
+
+  it("colors each habitat with its biome token", () => {
+    if (land?.type !== "fill") throw new Error("missing habitats fill");
+    const color = land.paint?.["fill-color"];
+    expect(color).toEqual([
+      "match",
+      ["get", "habitat"],
+      "forest", "marker-forest",
+      "grassland", "marker-grassland",
+      "waters-edge", "marker-waters-edge",
+      "mountain", "marker-mountain",
+      "rough-terrain", "marker-rough-terrain",
+      "sea", "marker-sea-habitat",
+      "marker-land",
+    ]);
+    if (sea?.type !== "fill") throw new Error("missing sea fill");
+    expect(sea.paint?.["fill-color"]).toEqual(color);
+  });
+
+  it("splits sea from land by the habitat property", () => {
+    expect(land && "filter" in land ? land.filter : undefined).toEqual(["!=", ["get", "habitat"], "sea"]);
+    expect(sea && "filter" in sea ? sea.filter : undefined).toEqual(["==", ["get", "habitat"], "sea"]);
   });
 });
 

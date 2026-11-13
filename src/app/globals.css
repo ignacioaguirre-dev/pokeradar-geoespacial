@@ -18,6 +18,13 @@
   --color-map-coast: #7c8a8e; /* Península Valdés reef at low tide */
   --color-map-border: #857c6e; /* basalt under moonlight */
   --color-map-province: #4d473c; /* wet basalt */
+  /* Habitat fills, map only, painted at 35 % over the land */
+  --color-biome-forest: #3f6b3a; /* Salta yungas cloud forest */
+  --color-biome-grassland: #8a9a4b; /* Pampas grassland in spring */
+  --color-biome-waters-edge: #4e8b7a; /* Esteros del Iberá */
+  --color-biome-mountain: #8a7a8e; /* Cerro de los Siete Colores */
+  --color-biome-rough-terrain: #8c8a78; /* Ischigualasto clays */
+  --color-biome-sea: #2e5e78; /* Argentine Sea off Península Valdés */
 
   --radius-control: 2px;
   --radius-panel: 4px;

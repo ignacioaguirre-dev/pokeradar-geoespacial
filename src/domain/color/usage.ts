@@ -21,6 +21,12 @@ export const COLOR_USAGE = {
   "map-coast": { kind: "decorative", minimum: null },
   "map-border": { kind: "decorative", minimum: null },
   "map-province": { kind: "decorative", minimum: null },
+  "biome-forest": { kind: "decorative", minimum: null },
+  "biome-grassland": { kind: "decorative", minimum: null },
+  "biome-waters-edge": { kind: "decorative", minimum: null },
+  "biome-mountain": { kind: "decorative", minimum: null },
+  "biome-rough-terrain": { kind: "decorative", minimum: null },
+  "biome-sea": { kind: "decorative", minimum: null },
 } as const satisfies Record<string, ColorUsage>;
 
 export type ColorToken = keyof typeof COLOR_USAGE;

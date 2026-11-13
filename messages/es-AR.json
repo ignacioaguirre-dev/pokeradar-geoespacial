@@ -22,10 +22,50 @@
     "unsupportedTitle": "Este navegador no puede mostrar el mapa.",
     "unsupportedBody": "Probá actualizarlo o activar la aceleración por hardware.",
     "attribution": "Datos del mapa",
-    "attributionData": "Datos de"
+    "attributionData": "Datos de",
+    "legend": "Hábitats",
+    "legendList": "Hábitats en el mapa"
   },
   "Button": {
     "loading": "Cargando…"
+  },
+  "Habitats": {
+    "cave": "Caverna",
+    "forest": "Bosque",
+    "grassland": "Pradera",
+    "mountain": "Montaña",
+    "rare": "Raro",
+    "rough-terrain": "Terreno agreste",
+    "sea": "Mar",
+    "urban": "Urbano",
+    "waters-edge": "Orilla del agua"
+  },
+  "Sites": {
+    "buenos-aires": "Buenos Aires",
+    "cordoba": "Córdoba",
+    "rosario": "Rosario",
+    "mendoza": "Mendoza",
+    "tucuman": "San Miguel de Tucumán",
+    "mar-del-plata": "Mar del Plata",
+    "salta": "Salta",
+    "neuquen": "Neuquén",
+    "cueva-de-las-manos": "Cueva de las Manos",
+    "caverna-de-las-brujas": "Caverna de las Brujas",
+    "cueva-de-los-leones": "Cueva de los Leones",
+    "aconcagua": "Aconcagua",
+    "perito-moreno": "Glaciar Perito Moreno",
+    "iguazu-falls": "Cataratas del Iguazú",
+    "ischigualasto": "Ischigualasto"
+  },
+  "Fences": {
+    "yungas": "Yungas",
+    "ibera": "Esteros del Iberá",
+    "pampa": "Pampa húmeda",
+    "puna": "Puna",
+    "monte": "Monte",
+    "patagonia": "Estepa patagónica",
+    "sea": "Mar Argentino",
+    "misiones": "Selva misionera"
   },
   "System": {
     "metaTitle": "Sistema · PokeRadar Geoespacial",
@@ -66,7 +106,13 @@
         "map-land": "Ripio de la estepa patagónica, noche clara",
         "map-coast": "Restinga de Península Valdés en bajamar",
         "map-border": "Basalto bajo luna",
-        "map-province": "Basalto húmedo"
+        "map-province": "Basalto húmedo",
+        "biome-forest": "Selva de las yungas salteñas",
+        "biome-grassland": "Pastizal de la pampa en primavera",
+        "biome-waters-edge": "Esteros del Iberá",
+        "biome-mountain": "Cerro de los Siete Colores",
+        "biome-rough-terrain": "Arcillas de Ischigualasto",
+        "biome-sea": "Mar Argentino frente a Península Valdés"
       },
       "usage": {
         "base": "Fondo base",

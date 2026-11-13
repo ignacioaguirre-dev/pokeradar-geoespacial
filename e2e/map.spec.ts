@@ -12,6 +12,7 @@ const ATTRIBUTIONS = [
   { name: "© OpenFreeMap", href: "https://openfreemap.org" },
   { name: "© OpenMapTiles", href: "https://openmaptiles.org" },
   { name: "© OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
+  { name: "© RESOLVE (CC BY 4.0)", href: "https://ecoregions.appspot.com" },
 ];
 
 // Next's route announcer is also an alert, always present and empty
@@ -141,6 +142,8 @@ test.describe("with WebGL2", () => {
     const ring = { style: "solid", width: "2px", color: FOREGROUND };
     const stops = [
       { locator: page.getByRole("application", { name: t.region }), offset: "-2px" },
+      // The legend sits left of the controls, so it comes first in both reading and focus order
+      { locator: page.getByRole("button", { name: t.legend }), offset: "2px" },
       { locator: page.getByRole("button", { name: t.zoomIn }), offset: "2px" },
       { locator: page.getByRole("button", { name: t.zoomOut }), offset: "2px" },
       { locator: page.getByRole("button", { name: t.reset }), offset: "2px" },

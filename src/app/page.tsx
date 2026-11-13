@@ -25,7 +25,7 @@ export default async function Home() {
       {/* Clicks fall through the empty column to the map; MapStage re-enables them on its parts */}
       <main className="pointer-events-none flex flex-col items-end gap-2 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
         {/* A nested provider replaces the messages, so every namespace the island reads goes here */}
-        <NextIntlClientProvider messages={{ Map: messages.Map, Button: messages.Button }}>
+        <NextIntlClientProvider messages={{ Map: messages.Map, Button: messages.Button, Habitats: messages.Habitats }}>
           <MapStage />
         </NextIntlClientProvider>
       </main>
@@ -45,6 +45,11 @@ export default async function Home() {
           {tMap("attributionData")}
           <a href="https://www.openstreetmap.org/copyright" className={ATTRIBUTION_LINK}>
             © OpenStreetMap
+          </a>
+          <span aria-hidden="true">·</span>
+          {/* Ecoregions; CC BY 4.0 asks for the source and the license */}
+          <a href="https://ecoregions.appspot.com" className={ATTRIBUTION_LINK}>
+            © RESOLVE (CC BY 4.0)
           </a>
         </p>
       </footer>
