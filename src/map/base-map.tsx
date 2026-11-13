@@ -62,7 +62,14 @@ export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const map = createMap(container);
+    let map: MapLibreMap;
+    try {
+      map = createMap(container);
+    } catch {
+      // The constructor throws when it cannot get a WebGL context, before any listener exists
+      reportStatus("error");
+      return;
+    }
     mapRef.current = map;
     map.touchZoomRotate.disableRotation();
 
@@ -84,6 +91,10 @@ export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) 
       if (!loaded) reportStatus("error");
     });
     map.on("webglcontextlost", () => reportStatus("error"));
+    // MapLibre restores the context itself, and a worker pool restart fires a lost/restored pair
+    map.on("webglcontextrestored", () => {
+      if (loaded) reportStatus("ready");
+    });
     map.on("zoomend", writeZoom);
 
     return () => {

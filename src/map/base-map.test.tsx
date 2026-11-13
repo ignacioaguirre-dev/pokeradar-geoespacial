@@ -7,6 +7,7 @@ type Handler = (event?: unknown) => void;
 const fake = vi.hoisted(() => {
   class FakeMap {
     static instances: FakeMap[] = [];
+    static throwOnCreate = false;
     handlers = new Map<string, Handler[]>();
     removed = 0;
     setPadding = vi.fn();
@@ -14,6 +15,7 @@ const fake = vi.hoisted(() => {
     canvas: HTMLCanvasElement;
 
     constructor(public options: { container: HTMLElement; locale: Record<string, string> }) {
+      if (FakeMap.throwOnCreate) throw new Error("Failed to initialize WebGL");
       // MapLibre appends its own canvas, names it from the locale and marks it as a region
       this.canvas = document.createElement("canvas");
       this.canvas.setAttribute("role", "region");
@@ -67,6 +69,7 @@ function lastMap() {
 describe("BaseMap", () => {
   beforeEach(() => {
     fake.FakeMap.instances = [];
+    fake.FakeMap.throwOnCreate = false;
   });
 
   it("reports ready on load", () => {
@@ -97,6 +100,24 @@ describe("BaseMap", () => {
     lastMap().emit("load");
     lastMap().emit("webglcontextlost");
     expect(onStatusChange).toHaveBeenLastCalledWith("error");
+  });
+
+  it("reports ready again when the WebGL context is restored", () => {
+    const onStatusChange = vi.fn();
+    render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    lastMap().emit("load");
+    lastMap().emit("webglcontextlost");
+    expect(onStatusChange).toHaveBeenLastCalledWith("error");
+    lastMap().emit("webglcontextrestored");
+    expect(onStatusChange).toHaveBeenLastCalledWith("ready");
+  });
+
+  it("reports error when the map cannot be created", () => {
+    fake.FakeMap.throwOnCreate = true;
+    const onStatusChange = vi.fn();
+    const { unmount } = render(<BaseMap labels={labels} padding={padding} onStatusChange={onStatusChange} />);
+    expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("error");
+    expect(() => unmount()).not.toThrow();
   });
 
   it("removes the map on unmount", () => {
