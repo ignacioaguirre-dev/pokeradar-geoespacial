@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HabitatCollection } from "./habitats";
 import type { MapColors } from "./colors";
+import { BIOME_OPACITY } from "@/domain/color/biome";
 import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import { buildStyle } from "./style";
 
@@ -114,10 +115,10 @@ describe("habitat layers", () => {
     expect(index("habitat-sea")).toBeLessThan(index("coastline"));
   });
 
-  it.each(["habitats", "habitat-sea"])("%s is muted to 0.35 opacity", (id) => {
+  it.each(["habitats", "habitat-sea"])("%s is muted to the shared biome opacity", (id) => {
     const layer = layers.find((l) => l.id === id);
     if (layer?.type !== "fill") throw new Error(`missing fill layer ${id}`);
-    expect(layer.paint?.["fill-opacity"]).toBe(0.35);
+    expect(layer.paint?.["fill-opacity"]).toBe(BIOME_OPACITY);
   });
 
   it("colors each habitat with its biome token", () => {

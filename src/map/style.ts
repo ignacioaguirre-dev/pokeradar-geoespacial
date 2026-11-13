@@ -1,4 +1,5 @@
 import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
+import { BIOME_OPACITY } from "@/domain/color/biome";
 import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { MapColors } from "./colors";
 import type { HabitatCollection } from "./habitats";
@@ -15,9 +16,6 @@ const NAME: ExpressionSpecification = [
 const IN_ARGENTINA: ExpressionSpecification = ["within", ARGENTINA_OUTLINE];
 const ON_LAND: ExpressionSpecification = ["!=", ["get", "maritime"], 1];
 
-// Muted so the land, the labels and later the fences stay readable over the biomes
-const HABITAT_OPACITY = 0.35;
-
 function habitatColor({ biome, land }: MapColors): ExpressionSpecification {
   return [
     "match",
@@ -33,7 +31,7 @@ function habitatColor({ biome, land }: MapColors): ExpressionSpecification {
 }
 
 export function buildStyle(colors: MapColors, habitats: HabitatCollection): StyleSpecification {
-  const habitatPaint = { "fill-color": habitatColor(colors), "fill-opacity": HABITAT_OPACITY };
+  const habitatPaint = { "fill-color": habitatColor(colors), "fill-opacity": BIOME_OPACITY };
   return {
     version: 8,
     sources: {

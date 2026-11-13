@@ -47,4 +47,16 @@ describe("HabitatLegend", () => {
     render(<HabitatLegend disabled />);
     expect(screen.getByRole("button", { name: "Hábitats" })).toBeDisabled();
   });
+
+  // Otherwise the list would pop open again by itself once the map is back
+  it("forgets it was open when it gets disabled", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<HabitatLegend />);
+    await user.click(screen.getByRole("button", { name: "Hábitats" }));
+    rerender(<HabitatLegend disabled />);
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    rerender(<HabitatLegend />);
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hábitats" })).toHaveAttribute("aria-expanded", "false");
+  });
 });
