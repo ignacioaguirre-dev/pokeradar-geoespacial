@@ -60,3 +60,24 @@ describe("buildStyle", () => {
     }
   });
 });
+
+describe("Malvinas label", () => {
+  // OpenMapTiles carries the archipelago as a country place with iso_a2 FK
+  const islands = layers.find((l) => l.id === "place-island");
+
+  it("labels the archipelago from the tile's own place", () => {
+    expect(islands?.type).toBe("symbol");
+    expect(islands && "source-layer" in islands ? islands["source-layer"] : undefined).toBe("place");
+    expect(islands && "filter" in islands ? islands.filter : undefined).toEqual([
+      "all",
+      ["==", ["get", "class"], "country"],
+      ["==", ["get", "iso_a2"], "FK"],
+    ]);
+  });
+
+  it("reads the Spanish name with the served italic font", () => {
+    if (islands?.type !== "symbol") throw new Error("missing place-island symbol layer");
+    expect(islands.layout?.["text-field"]).toEqual(["coalesce", ["get", "name:es"], ["get", "name"]]);
+    expect(islands.layout?.["text-font"]).toEqual(["Noto Sans Italic"]);
+  });
+});

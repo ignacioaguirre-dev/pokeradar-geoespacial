@@ -87,6 +87,16 @@ export function buildStyle(colors: MapColors): StyleSpecification {
         layout: { "text-field": NAME, "text-font": ["Noto Sans Regular"], "text-size": 12 },
         paint: { "text-color": colors.city },
       },
+      {
+        // OpenMapTiles carries the archipelago as a country place; last so its label wins placement
+        id: "place-island",
+        type: "symbol",
+        source: SOURCE,
+        "source-layer": "place",
+        filter: ["all", ["==", ["get", "class"], "country"], ["==", ["get", "iso_a2"], "FK"]],
+        layout: { "text-field": NAME, "text-font": ["Noto Sans Italic"], "text-size": 12 },
+        paint: { "text-color": colors.label },
+      },
     ],
   };
 }
