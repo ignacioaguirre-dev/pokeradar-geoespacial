@@ -339,6 +339,37 @@ test.describe("with WebGL2", () => {
       expect(await zoomOf(page)).toBe(final);
     });
 
+    // Skip first while flying; once on the map, the movement help and then the rest of the bottom row
+    test("after skipping from the keyboard, Tab reaches the movement help and the controls", async ({ page }) => {
+      await startFlight(page);
+      await expect(helpIntro(page)).toHaveCount(0);
+      await page.keyboard.press("Tab");
+      await expect(skipButton(page)).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("application", { name: t.region })).toBeFocused();
+      await expect(helpIntro(page)).toBeVisible();
+      for (const locator of [
+        page.getByRole("button", { name: help.dismiss }),
+        page.getByRole("button", { name: t.legend }),
+        page.getByRole("button", { name: help.title }),
+        page.getByRole("button", { name: t.zoomIn }),
+        page.getByRole("button", { name: t.zoomOut }),
+        page.getByRole("button", { name: t.reset }),
+      ]) {
+        await page.keyboard.press("Tab");
+        await expect(locator).toBeFocused();
+      }
+    });
+
+    test("the movement help waits for the flight to end by itself", async ({ page }) => {
+      await startFlight(page);
+      await expect(helpIntro(page)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: help.title })).toBeDisabled();
+      await expect(skipButton(page)).toBeHidden({ timeout: 15_000 });
+      await expect(helpIntro(page)).toBeVisible();
+      await expect(page.getByRole("button", { name: help.title })).toBeEnabled();
+    });
+
     test("a key on the map ends the flight", async ({ page }) => {
       const final = await finalZoom(page);
       await startFlight(page);
@@ -361,6 +392,19 @@ test.describe("with WebGL2", () => {
       // The wheel then zooms out from the final frame, never from the globe
       await expect.poll(() => zoomOf(page)).toBeLessThan(final);
       expect(await zoomOf(page)).toBeGreaterThan(final - 1);
+    });
+
+    test("a touchpad swipe on the map ends the flight and pans from the final frame", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      const box = await page.getByRole("application", { name: t.region }).boundingBox();
+      if (!box) throw new Error("no canvas");
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(40, 0);
+      await expect(skipButton(page)).toBeHidden();
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
+      // A sideways swipe pans, so the zoom stays the final one instead of the globe's
+      expect(await zoomOf(page)).toBe(final);
     });
 
     test("a tap on the map ends the flight", async ({ page }) => {
