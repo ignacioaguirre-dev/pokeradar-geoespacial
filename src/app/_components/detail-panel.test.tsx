@@ -78,6 +78,22 @@ describe("DetailPanel", () => {
     expect(opener).toHaveFocus();
   });
 
+  // Until popstate arrives the id does not change: a second close would go back twice and could leave the app
+  it("asks to close only once per opening, however many times Close or Escape are hit", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<DetailPanel id={25} wide={false} onClose={onClose} fallbackFocus={() => null} />);
+    const close = await screen.findByRole("button", { name: "Cerrar" });
+    await userEvent.dblClick(close);
+    await userEvent.keyboard("{Escape}{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    // Closed and reopened: the new opening can be closed again
+    rerender(<DetailPanel id={null} wide={false} onClose={onClose} fallbackFocus={() => null} />);
+    rerender(<DetailPanel id={25} wide={false} onClose={onClose} fallbackFocus={() => null} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Cerrar" }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
   it("returns focus to the map when it opened without an origin", async () => {
     render(<Harness initial={25} withOpener={false} />);
     await screen.findByRole("region", { name: "Pikachu" });

@@ -23,13 +23,13 @@ function detailAlert(page: Page) {
   return page.getByRole("alert").filter({ hasText: t.errorTitle });
 }
 
-// The panel's bars grow in; the last one landing on its value means the reading is complete
+// The meters hold their final values from the first render (only the fill is drawn growing),
+// so the panel named after the creature with its last meter in place means the reading is complete
 async function waitForReading(page: Page) {
   const panel = page.getByRole("region", { name: "Pikachu" });
   // Generous: the first request on a cold server also waits for the fixture upstream
-  await expect(panel.getByRole("meter", { name: messages.Stats.speed })).toHaveAttribute("value", "90", {
-    timeout: 15_000,
-  });
+  await expect(panel.getByRole("meter", { name: messages.Stats.speed })).toBeVisible({ timeout: 15_000 });
+  await expect(panel.getByRole("meter", { name: messages.Stats.speed })).toHaveAttribute("value", "90");
   return panel;
 }
 
@@ -115,6 +115,17 @@ test.describe("opened from inside the app", () => {
     // Close went back: only the panel's own entry exists (now ahead), none stacked on top of it
     expect(await page.evaluate(() => window.history.length)).toBe(before + 1);
     expect(await page.evaluate(() => (window.history.state as { creatureDetail?: boolean } | null)?.creatureDetail)).toBeUndefined();
+  });
+
+  test("a double click on Close goes back only once and stays in the app", async ({ page }) => {
+    await page.goto("/");
+    await openInApp(page);
+    await page.getByRole("button", { name: t.close }).dblclick();
+    await expect(page.getByRole("region", { name: "Pikachu" })).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).search).toBe("");
+    // A second back would have left for the blank page the test started on
+    await expect(page.getByRole("region", { name: messages.Map.region })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/");
   });
 });
 

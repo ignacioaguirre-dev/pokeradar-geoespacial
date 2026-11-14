@@ -1,9 +1,11 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, domAnimation, LazyMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { useTranslations } from "next-intl";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { CreatureDetail } from "@/components/creature/creature-detail";
+import { CURVE_OUT } from "@/components/ui/motion-tokens";
 import { useCreature } from "@/features/creature/use-creature";
 import { useDurationToken } from "@/hooks/use-duration-token";
 
@@ -14,9 +16,6 @@ type Props = {
   // Where focus lands on close when nothing outside the panel had it (a shared link opens it on load)
   fallbackFocus(): HTMLElement | null;
 };
-
-// --curve-out from globals.css, as motion takes it
-const CURVE_OUT = [0.16, 1, 0.3, 1] as const;
 
 // Not modal: the map stays usable around it. A bottom sheet up to 60 % tall on phones, a floating panel on desktop
 const PANEL =
@@ -32,7 +31,19 @@ export function DetailPanel({ id, wide, onClose, fallbackFocus }: Props) {
   const panelRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const origin = useRef<HTMLElement | null>(null);
+  // Closing goes back in history and the id only changes on popstate: until then, ask once
+  const closing = useRef(false);
   const open = id !== null;
+
+  useEffect(() => {
+    closing.current = false;
+  }, [id]);
+
+  const close = () => {
+    if (closing.current) return;
+    closing.current = true;
+    onClose();
+  };
 
   const enter = useEffectEvent(() => {
     const active = document.activeElement;
@@ -51,7 +62,7 @@ export function DetailPanel({ id, wide, onClose, fallbackFocus }: Props) {
   });
 
   const escape = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key === "Escape" && !event.defaultPrevented) onClose();
+    if (event.key === "Escape" && !event.defaultPrevented) close();
   });
 
   useEffect(() => {
@@ -71,28 +82,31 @@ export function DetailPanel({ id, wide, onClose, fallbackFocus }: Props) {
   const name = creature.state === "ready" ? creature.data?.name : undefined;
 
   return (
-    <AnimatePresence>
-      {open && creature.state !== "idle" ? (
-        <motion.section
-          key="detail"
-          ref={panelRef}
-          aria-label={name ?? t("region")}
-          className={PANEL}
-          initial={hidden}
-          animate={{ x: 0, y: 0 }}
-          exit={hidden}
-          transition={{ duration: durationMs / 1000, ease: CURVE_OUT }}
-        >
-          <CreatureDetail
-            state={creature.state}
-            data={creature.data}
-            error={creature.error}
-            onRetry={creature.retry}
-            onClose={onClose}
-            titleRef={titleRef}
-          />
-        </motion.section>
-      ) : null}
-    </AnimatePresence>
+    // domAnimation with m.* instead of the full motion bundle: the panel only animates x and y
+    <LazyMotion features={domAnimation} strict>
+      <AnimatePresence>
+        {open && creature.state !== "idle" ? (
+          <m.section
+            key="detail"
+            ref={panelRef}
+            aria-label={name ?? t("region")}
+            className={PANEL}
+            initial={hidden}
+            animate={{ x: 0, y: 0 }}
+            exit={hidden}
+            transition={{ duration: durationMs / 1000, ease: CURVE_OUT }}
+          >
+            <CreatureDetail
+              state={creature.state}
+              data={creature.data}
+              error={creature.error}
+              onRetry={creature.retry}
+              onClose={close}
+              titleRef={titleRef}
+            />
+          </m.section>
+        ) : null}
+      </AnimatePresence>
+    </LazyMotion>
   );
 }
