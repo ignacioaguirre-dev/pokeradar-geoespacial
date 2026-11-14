@@ -455,6 +455,7 @@ describe("BaseMap sweep", () => {
     expect(lastMap().fitBounds).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.objectContaining({ padding, absolutePadding: true }),
+      expect.anything(),
     );
   });
 
@@ -563,6 +564,30 @@ describe("BaseMap sweep", () => {
       emit("moveend");
       playFrames();
       expect(lastMap().fitBounds).toHaveBeenCalledTimes(2);
+    });
+
+    // The fake camera does not fire movestart itself: each case replays it with the data the control passed
+    describe.each([
+      { control: "zoomIn", move: "easeTo" },
+      { control: "zoomOut", move: "easeTo" },
+      { control: "resetView", move: "fitBounds" },
+    ] as const)("$control", ({ control, move }) => {
+      it("during the sweep counts as the person's move: it does not close in afterwards", () => {
+        const ref = createRef<MapHandle>();
+        render(
+          <BaseMap ref={ref} habitats={habitats} labels={labels} padding={padding} onStatusChange={vi.fn()} sweep={sweep()} />,
+        );
+        emit("load");
+        lastMap().scale = 20;
+        emit("moveend");
+        const fits = lastMap().fitBounds.mock.calls.length;
+        act(() => ref.current?.[control]());
+        const call = lastMap()[move].mock.calls.at(-1) as unknown[];
+        emit("movestart", { ...(call.at(-1) as object) });
+        playFrames();
+        expect(liveMarkers()).toHaveLength(2);
+        expect(lastMap().fitBounds).toHaveBeenCalledTimes(fits + (move === "fitBounds" ? 1 : 0));
+      });
     });
 
     it("a gesture during a previous fence does not hold back the next one", () => {

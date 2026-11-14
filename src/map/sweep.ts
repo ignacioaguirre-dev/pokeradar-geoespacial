@@ -22,6 +22,9 @@ type Options = {
   onIntent(id: number): void;
 };
 
+// Event data the map controls (+, − and Ver Argentina) pass with their camera move: like a gesture, it is the person's
+export const CONTROL_MOVE = { control: true } as const;
+
 const EMPTY = { type: "FeatureCollection", features: [] } as const;
 
 // If the camera never reports the end of its move (a gesture took over), start anyway
@@ -112,10 +115,10 @@ export function runSweep(map: MapLibreMap, options: Options): () => void {
 
   let markers: ReturnType<typeof addMarkers> = [];
   // A wheel, drag or pinch during the sweep hands the camera to the person: the closing-in move would undo it.
-  // Only gestures carry the DOM event; the sweep's own camera moves do not
+  // Only gestures carry the DOM event, and the controls their own mark; the sweep's own camera moves carry neither
   let taken = false;
-  const onMoveStart = (event: { originalEvent?: unknown }) => {
-    if (event.originalEvent) taken = true;
+  const onMoveStart = (event: { originalEvent?: unknown; control?: boolean }) => {
+    if (event.originalEvent || event.control) taken = true;
   };
   map.on("movestart", onMoveStart);
   const land = () => {

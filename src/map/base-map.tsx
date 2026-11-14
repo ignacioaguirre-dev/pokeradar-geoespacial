@@ -11,6 +11,7 @@ import type { HabitatCollection } from "./habitats";
 import { SIGHTINGS_SOURCE, toSightingCollection } from "./sightings";
 import { INTRO_PROJECTION, type IntroFlight, startIntroFlight } from "./intro-flight";
 import { buildStyle } from "./style";
+import { CONTROL_MOVE } from "./sweep";
 import { type SweepProps, useSweep } from "./use-sweep";
 import { type GestureState, classifyWheel, toPixels, wheelAction, wheelZoomDelta } from "./wheel-gesture";
 
@@ -267,8 +268,8 @@ export function BaseMap({
       const map = mapRef.current;
       if (!map) return;
       const zoom = map.getZoom() + delta;
-      if (prefersReducedMotion()) map.jumpTo({ zoom });
-      else map.easeTo({ zoom });
+      if (prefersReducedMotion()) map.jumpTo({ zoom }, CONTROL_MOVE);
+      else map.easeTo({ zoom }, CONTROL_MOVE);
     }
     return {
       zoomIn: () => zoomBy(1),
@@ -279,7 +280,7 @@ export function BaseMap({
           padding: { top, right, bottom, left },
           absolutePadding: true,
           animate: !prefersReducedMotion(),
-        });
+        }, CONTROL_MOVE);
       },
       skipIntro: () => flightRef.current?.cancel(),
       focus: () => mapRef.current?.getCanvas().focus({ preventScroll: true }),
