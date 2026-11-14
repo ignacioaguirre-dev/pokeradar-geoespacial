@@ -8,7 +8,7 @@ const OWN = t.own;
 type LngLat = readonly [number, number];
 
 // The map's own padding (map-stage.tsx): its center sits in the middle of what the padding leaves
-const PADDING_NARROW = { top: 64, right: 12, bottom: 284, left: 12 };
+const PADDING_NARROW = { top: 64, right: 68, bottom: 160, left: 12 };
 const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 352 };
 // MapLibre's world is 512 px wide at zoom 0
 const TILE = 512;
