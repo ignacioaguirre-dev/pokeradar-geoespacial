@@ -1,8 +1,16 @@
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { devices, expect, test, type Locator, type Page, type Response } from "@playwright/test";
 import messages from "../messages/es-AR.json";
-import { expectNoA11yViolations, expectScreenshot, mockOpenFreeMap, waitForMapReady } from "./helpers";
+import { MAP_HELP_SEEN_KEY } from "../src/features/map-help/storage";
+import {
+  expectNoA11yViolations,
+  expectScreenshot,
+  mockOpenFreeMap,
+  mockPokeApiAssets,
+  waitForMapReady,
+} from "./helpers";
 
 const t = messages.Map;
+const help = messages.MapHelp;
 // --color-foreground as getComputedStyle reports it
 const FOREGROUND = "rgb(241, 237, 228)";
 // A class only MapLibre's code writes, so it identifies the chunk that carries the map
@@ -18,6 +26,14 @@ const ATTRIBUTIONS = [
 // Next's route announcer is also an alert, always present and empty
 function mapAlert(page: Page) {
   return page.getByRole("alert").filter({ hasText: /\S/ });
+}
+
+function helpIntro(page: Page) {
+  return page.getByRole("status").filter({ hasText: help.title });
+}
+
+async function markHelpSeen(page: Page) {
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), MAP_HELP_SEEN_KEY);
 }
 
 function isScript(response: Response): boolean {
@@ -148,8 +164,11 @@ test.describe("with WebGL2", () => {
     const ring = { style: "solid", width: "2px", color: FOREGROUND };
     const stops = [
       { locator: page.getByRole("application", { name: t.region }), offset: "-2px" },
-      // The legend sits left of the controls, so it comes first in both reading and focus order
+      // The movement help sits above the controls on a first visit
+      { locator: page.getByRole("button", { name: help.dismiss }), offset: "2px" },
+      // The legend and the help button sit left of the controls, so they come first in both reading and focus order
       { locator: page.getByRole("button", { name: t.legend }), offset: "2px" },
+      { locator: page.getByRole("button", { name: help.title }), offset: "2px" },
       { locator: page.getByRole("button", { name: t.zoomIn }), offset: "2px" },
       { locator: page.getByRole("button", { name: t.zoomOut }), offset: "2px" },
       { locator: page.getByRole("button", { name: t.reset }), offset: "2px" },
@@ -176,6 +195,47 @@ test.describe("with WebGL2", () => {
     await page.getByRole("button", { name: t.zoomIn }).focus();
     await page.keyboard.press("Enter");
     await expect.poll(async () => Number(await map.getAttribute("data-zoom"))).toBeGreaterThan(before);
+  });
+
+  test.describe("wheel gestures", () => {
+    async function readView(page: Page) {
+      const map = page.locator("[data-map]");
+      const [lng, lat] = ((await map.getAttribute("data-center")) ?? "").split(",").map(Number);
+      return { zoom: Number(await map.getAttribute("data-zoom")), lng, lat };
+    }
+
+    async function hoverMap(page: Page) {
+      await page.goto("/");
+      await waitForMapReady(page);
+      const box = await page.getByRole("application", { name: t.region }).boundingBox();
+      if (!box) throw new Error("the map has no box");
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      // data-center is written on moveend, which the initial fit already fired
+      await expect(page.locator("[data-map]")).toHaveAttribute("data-center", /\S/);
+      return readView(page);
+    }
+
+    test("a horizontal swipe pans the map without zooming", async ({ page }) => {
+      const before = await hoverMap(page);
+      await page.mouse.wheel(120, 0);
+      await expect.poll(async () => (await readView(page)).lng).not.toBe(before.lng);
+      expect((await readView(page)).zoom).toBe(before.zoom);
+    });
+
+    // Up, because the initial fit may already sit at the minimum zoom
+    test("a mouse wheel tick zooms", async ({ page }) => {
+      const before = await hoverMap(page);
+      await page.mouse.wheel(0, -100);
+      await expect.poll(async () => (await readView(page)).zoom).toBeGreaterThan(before.zoom);
+    });
+
+    test("ctrl and the wheel zoom, as a touchpad pinch does", async ({ page }) => {
+      const before = await hoverMap(page);
+      await page.keyboard.down("Control");
+      await page.mouse.wheel(0, -100);
+      await page.keyboard.up("Control");
+      await expect.poll(async () => (await readView(page)).zoom).toBeGreaterThan(before.zoom);
+    });
   });
 
   test("reduced motion jumps instead of animating", async ({ page }) => {
@@ -283,6 +343,37 @@ test.describe("with WebGL2", () => {
       expect(await zoomOf(page)).toBe(final);
     });
 
+    // Skip first while flying; once on the map, the movement help and then the rest of the bottom row
+    test("after skipping from the keyboard, Tab reaches the movement help and the controls", async ({ page }) => {
+      await startFlight(page);
+      await expect(helpIntro(page)).toHaveCount(0);
+      await page.keyboard.press("Tab");
+      await expect(skipButton(page)).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("application", { name: t.region })).toBeFocused();
+      await expect(helpIntro(page)).toBeVisible();
+      for (const locator of [
+        page.getByRole("button", { name: help.dismiss }),
+        page.getByRole("button", { name: t.legend }),
+        page.getByRole("button", { name: help.title }),
+        page.getByRole("button", { name: t.zoomIn }),
+        page.getByRole("button", { name: t.zoomOut }),
+        page.getByRole("button", { name: t.reset }),
+      ]) {
+        await page.keyboard.press("Tab");
+        await expect(locator).toBeFocused();
+      }
+    });
+
+    test("the movement help waits for the flight to end by itself", async ({ page }) => {
+      await startFlight(page);
+      await expect(helpIntro(page)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: help.title })).toBeDisabled();
+      await expect(skipButton(page)).toBeHidden({ timeout: 15_000 });
+      await expect(helpIntro(page)).toBeVisible();
+      await expect(page.getByRole("button", { name: help.title })).toBeEnabled();
+    });
+
     test("a key on the map ends the flight", async ({ page }) => {
       const final = await finalZoom(page);
       await startFlight(page);
@@ -305,6 +396,19 @@ test.describe("with WebGL2", () => {
       // The wheel then zooms out from the final frame, never from the globe
       await expect.poll(() => zoomOf(page)).toBeLessThan(final);
       expect(await zoomOf(page)).toBeGreaterThan(final - 1);
+    });
+
+    test("a touchpad swipe on the map ends the flight and pans from the final frame", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      const box = await page.getByRole("application", { name: t.region }).boundingBox();
+      if (!box) throw new Error("no canvas");
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(40, 0);
+      await expect(skipButton(page)).toBeHidden();
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
+      // A sideways swipe pans, so the zoom stays the final one instead of the globe's
+      expect(await zoomOf(page)).toBe(final);
     });
 
     test("a tap on the map ends the flight", async ({ page }) => {
@@ -344,6 +448,7 @@ test.describe("with WebGL2", () => {
     [1280, 800],
   ] as const) {
     test(`the home page looks unchanged at ${width} px @visual`, async ({ page }) => {
+      await markHelpSeen(page);
       await page.setViewportSize({ width, height });
       await page.goto("/");
       await waitForMapReady(page);
@@ -355,6 +460,159 @@ test.describe("with WebGL2", () => {
       await expect(mapAlert(page)).toContainText(t.errorTitle);
       await page.evaluate(() => document.fonts.ready);
       await expectScreenshot(page, `home-error-${width}`);
+    });
+  }
+});
+
+test.describe("movement help", () => {
+  test.beforeEach(async ({ page, browserName }) => {
+    test.skip(browserName === "firefox" && Boolean(process.env.CI), "Headless Firefox has no WebGL2 in CI");
+    await mockOpenFreeMap(page);
+  });
+
+  test("a computer gets the desktop help, which a drag closes for good", async ({ page }) => {
+    await page.goto("/");
+    await waitForMapReady(page);
+    const intro = helpIntro(page);
+    for (const line of [help.touchpad, help.mouse, help.keyboard]) await expect(intro).toContainText(line);
+    await expect(intro).not.toContainText(help.touch);
+
+    const box = await page.getByRole("application", { name: t.region }).boundingBox();
+    if (!box) throw new Error("the map has no box");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 40, { steps: 8 });
+    await page.mouse.up();
+    await expect(intro).toHaveCount(0);
+
+    await page.reload();
+    await waitForMapReady(page);
+    await expect(page.getByRole("button", { name: help.title })).toBeEnabled();
+    await expect(intro).toHaveCount(0);
+  });
+
+  test("the help button reopens it, and Escape gives the focus back", async ({ page }) => {
+    await markHelpSeen(page);
+    await page.goto("/");
+    await waitForMapReady(page);
+    const button = page.getByRole("button", { name: help.title });
+    await button.click();
+    const panel = page.getByRole("region", { name: help.title });
+    await expect(panel).toContainText(help.touchpad);
+    await expectNoA11yViolations(page);
+    // The panel follows its button, so Tab goes straight into it
+    await page.keyboard.press("Tab");
+    await expect(panel.getByRole("button", { name: help.close })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await expect(button).toBeFocused();
+  });
+
+  test("the first move of the map also closes the open panel", async ({ page }) => {
+    await markHelpSeen(page);
+    await page.goto("/");
+    await waitForMapReady(page);
+    await page.getByRole("button", { name: help.title }).click();
+    const panel = page.getByRole("region", { name: help.title });
+    await expect(panel).toBeVisible();
+    const box = await page.getByRole("application", { name: t.region }).boundingBox();
+    if (!box) throw new Error("the map has no box");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 3 + 40, { steps: 8 });
+    await page.mouse.up();
+    await expect(panel).toHaveCount(0);
+  });
+
+  test.describe("on a phone", () => {
+    // The browser type comes from the project (it cannot change inside a file); the rest is the device
+    const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = devices["Pixel 7"];
+    test.use({ viewport, userAgent, deviceScaleFactor, isMobile, hasTouch });
+
+    test("a phone gets the touch help", async ({ page }) => {
+      await page.goto("/");
+      await waitForMapReady(page);
+      const intro = helpIntro(page);
+      await expect(intro).toContainText(help.touch);
+      await expect(intro).not.toContainText(help.mouse);
+      await expectNoA11yViolations(page);
+    });
+  });
+
+  type Box = { x: number; y: number; width: number; height: number };
+
+  function overlaps(a: Box, b: Box): boolean {
+    return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  }
+
+  async function boxOf(locator: Locator): Promise<Box> {
+    const box = await locator.boundingBox();
+    if (!box) throw new Error("not on screen");
+    return box;
+  }
+
+  for (const [width, height] of [
+    [360, 740],
+    [390, 844],
+    [1280, 800],
+  ] as const) {
+    test(`at ${width} px the help fits on screen and never sits under the creature detail`, async ({ page }) => {
+      await mockPokeApiAssets(page);
+      await page.setViewportSize({ width, height });
+      await page.goto("/?creature=25");
+      await waitForMapReady(page);
+      const detail = page.getByRole("region", { name: "Pikachu" });
+      await expect(detail.getByRole("meter", { name: messages.Stats.speed })).toBeVisible({ timeout: 15_000 });
+      // Settled: the panel slides in
+      await expect.poll(async () => (await boxOf(detail)).x).toBe(width < 768 ? 0 : width - 12 - 360);
+      const intro = helpIntro(page);
+      if (width < 768) {
+        // The bottom sheet covers the controls row, so the help waits until it closes
+        await expect(intro).toHaveCount(0);
+        await page.getByRole("button", { name: messages.Creature.close }).click();
+        await expect(detail).toHaveCount(0);
+        await expect(intro).toBeVisible();
+      } else {
+        await expect(intro).toBeVisible();
+        expect(overlaps(await boxOf(intro), await boxOf(detail))).toBe(false);
+      }
+      for (const box of [await boxOf(intro), await boxOf(page.getByRole("button", { name: help.title }))]) {
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(width);
+      }
+      // The button keeps its label without crowding the map controls
+      expect(
+        overlaps(
+          await boxOf(page.getByRole("button", { name: help.title })),
+          await boxOf(page.getByRole("navigation", { name: t.controls })),
+        ),
+      ).toBe(false);
+
+      await page.getByRole("button", { name: help.dismiss }).click();
+      await page.getByRole("button", { name: help.title }).click();
+      const panel = page.getByRole("region", { name: help.title });
+      const panelBox = await boxOf(panel);
+      expect(panelBox.x).toBeGreaterThanOrEqual(0);
+      expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(width);
+      if (width >= 768) expect(overlaps(panelBox, await boxOf(detail))).toBe(false);
+    });
+  }
+
+  for (const [width, height] of [
+    [390, 844],
+    [1280, 800],
+  ] as const) {
+    test(`the movement help looks right at ${width} px @visual`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForMapReady(page);
+      await expect(helpIntro(page)).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      await expectScreenshot(page, `home-help-intro-${width}`);
+
+      await page.getByRole("button", { name: help.title }).click();
+      await expect(page.getByRole("region", { name: help.title })).toBeVisible();
+      await expectScreenshot(page, `home-help-panel-${width}`);
     });
   }
 });

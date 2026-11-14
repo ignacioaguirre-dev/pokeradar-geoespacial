@@ -1,8 +1,9 @@
 import { fireEvent } from "@testing-library/react";
 import { act, type Ref } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@/testing/render";
-import type { MapStatus } from "@/map/base-map";
+import { render, screen, within } from "@/testing/render";
+import type { MapInput, MapStatus } from "@/map/base-map";
+import { createMapHelpStore, MAP_HELP_SEEN_KEY, type MapHelpStore } from "@/features/map-help/storage";
 import { introPlayed } from "./intro-played";
 import { MapStage } from "./map-stage";
 
@@ -12,6 +13,8 @@ const fake = vi.hoisted(() => ({
   mounts: 0,
   active: 0,
   onStatusChange: null as ((status: "ready" | "error") => void) | null,
+  onInputDetected: null as ((input: MapInput) => void) | null,
+  onInteract: null as (() => void) | null,
   padding: null as { top: number; right: number; bottom: number; left: number } | null,
   habitats: null as { features: { properties: { habitat: string } }[] } | null,
   sightings: undefined as readonly (readonly [number, number, number])[] | undefined,
@@ -35,6 +38,8 @@ vi.mock("@/map/base-map", async () => {
     intro,
     onIntroEnd,
     onStatusChange,
+    onInputDetected,
+    onInteract,
     ref,
   }: {
     habitats: typeof fake.habitats;
@@ -43,11 +48,15 @@ vi.mock("@/map/base-map", async () => {
     intro?: boolean;
     onIntroEnd?(): void;
     onStatusChange(status: MapStatus): void;
+    onInputDetected?(input: MapInput): void;
+    onInteract?(): void;
     ref?: Ref<typeof fake.handle>;
   }) {
     if (fake.chunk) use(fake.chunk);
     useEffect(() => {
       fake.onStatusChange = onStatusChange;
+      fake.onInputDetected = onInputDetected ?? null;
+      fake.onInteract = onInteract ?? null;
       fake.padding = padding;
       fake.habitats = habitats;
       fake.sightings = sightings;
@@ -86,13 +95,34 @@ vi.mock("./habitat-map", async (importOriginal) => {
   };
 });
 
+// The real store caches per module; each test gets a fresh one so a dismissal does not leak into the next
+const helpStore = vi.hoisted(() => ({ current: null as MapHelpStore | null }));
+vi.mock("@/features/map-help/storage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/map-help/storage")>();
+  const store = () => helpStore.current ?? actual.createMapHelpStore();
+  return {
+    ...actual,
+    subscribe: (onChange: () => void) => store().subscribe(onChange),
+    getSnapshot: () => store().getSnapshot(),
+    markMapHelpSeen: () => store().markSeen(),
+  };
+});
+
 vi.mock("@/map/supports-webgl2", () => ({ supportsWebGL2: () => fake.webgl2 }));
 // The detail reads the URL through the Next router, which these tests do not mount
-vi.mock("./creature-route", () => ({ CreatureRoute: () => null }));
+const route = vi.hoisted(() => ({ onOpenChange: null as ((open: boolean) => void) | null }));
+vi.mock("./creature-route", () => ({
+  CreatureRoute: ({ onOpenChange }: { onOpenChange?(open: boolean): void }) => {
+    route.onOpenChange = onOpenChange ?? null;
+    return null;
+  },
+}));
 
 const WIDE = "(min-width: 768px)";
 const REDUCED = "(prefers-reduced-motion: reduce)";
 let wide = false;
+// Media queries that match besides WIDE and REDUCED (pointer and hover)
+let matching = new Set<string>();
 let reduced = true;
 const mediaListeners = new Set<() => void>();
 
@@ -100,7 +130,7 @@ function installMatchMedia() {
   window.matchMedia = (query: string) =>
     ({
       get matches() {
-        return query === WIDE ? wide : query === REDUCED ? reduced : false;
+        return query === WIDE ? wide : query === REDUCED ? reduced : matching.has(query);
       },
       media: query,
       addEventListener: (_: string, listener: () => void) => mediaListeners.add(listener),
@@ -158,6 +188,9 @@ describe("MapStage", () => {
     fake.onIntroEnd = undefined;
     fake.handle = { zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn(), skipIntro: vi.fn(), focus: vi.fn() };
     wide = false;
+    matching = new Set(["(pointer: fine) and (hover: hover)"]);
+    localStorage.clear();
+    helpStore.current = createMapHelpStore();
     // Most states are about loading, not the flight
     reduced = true;
     mediaListeners.clear();
@@ -437,6 +470,160 @@ describe("MapStage", () => {
     expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 120 });
     expect(fake.mounts).toBe(1);
   });
+  describe("movement help", () => {
+    const TOUCH = "Arrastrá con un dedo para moverte · Pellizcá para acercar o alejar";
+    const TOUCHPAD = "Touchpad: dos dedos para moverte · pellizcá para acercar";
+    const MOUSE = "Mouse: arrastrá para moverte · rueda para acercar";
+    const KEYBOARD = "Teclado: flechas para moverte · + y − para acercar";
+    const SEEN_KEY = MAP_HELP_SEEN_KEY;
+
+    // The intro is the status that carries the help lines
+    function intro() {
+      return screen.queryAllByRole("status").find((status) => /para moverte/.test(status.textContent ?? "")) ?? null;
+    }
+
+    async function readyStage() {
+      await renderStage();
+      report("ready");
+    }
+
+    it("waits for the map before showing", async () => {
+      await renderStage();
+      expect(intro()).toBeNull();
+      report("ready");
+      expect(intro()).not.toBeNull();
+    });
+
+    it("shows touchpad, mouse and keyboard on a computer", async () => {
+      await readyStage();
+      const items = within(intro() as HTMLElement).getAllByRole("listitem").map((item) => item.textContent);
+      expect(items).toEqual([TOUCHPAD, MOUSE, KEYBOARD]);
+    });
+
+    it("shows touch on a phone", async () => {
+      matching = new Set(["(pointer: coarse)", "(any-pointer: coarse)"]);
+      await readyStage();
+      const items = within(intro() as HTMLElement).getAllByRole("listitem").map((item) => item.textContent);
+      expect(items).toEqual([TOUCH]);
+    });
+
+    it("shows both on a laptop with a touch screen", async () => {
+      matching = new Set(["(pointer: fine) and (hover: hover)", "(any-pointer: coarse)"]);
+      await readyStage();
+      const items = within(intro() as HTMLElement).getAllByRole("listitem").map((item) => item.textContent);
+      expect(items).toEqual([TOUCHPAD, MOUSE, KEYBOARD, TOUCH]);
+    });
+
+    it("closes with Entendido, remembers it and leaves the focus on the help button", async () => {
+      await readyStage();
+      click("Entendido");
+      expect(intro()).toBeNull();
+      expect(localStorage.getItem(SEEN_KEY)).toBe("1");
+      expect(screen.getByRole("button", { name: "Cómo moverse" })).toHaveFocus();
+    });
+
+    it("closes with the first move of the map", async () => {
+      await readyStage();
+      act(() => fake.onInteract?.());
+      expect(intro()).toBeNull();
+      expect(localStorage.getItem(SEEN_KEY)).toBe("1");
+    });
+
+    it("closes when a control is used", async () => {
+      await readyStage();
+      click("Acercar");
+      expect(intro()).toBeNull();
+      expect(fake.handle.zoomIn).toHaveBeenCalledOnce();
+    });
+
+    it("does not come back once seen", async () => {
+      localStorage.setItem(SEEN_KEY, "1");
+      await readyStage();
+      expect(intro()).toBeNull();
+    });
+
+    it("still works without storage", async () => {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+      await readyStage();
+      expect(intro()).not.toBeNull();
+      click("Entendido");
+      expect(intro()).toBeNull();
+    });
+
+    it("never shows when the map cannot load", async () => {
+      fake.webgl2 = false;
+      await renderStage();
+      expect(intro()).toBeNull();
+      expect(screen.queryByRole("button", { name: "Cómo moverse" })).not.toBeInTheDocument();
+    });
+
+    // With its visible label it does not fit beside the map controls on a 360 px phone, so it joins the legend's row
+    it("the help button sits right after the legend and waits for the map", async () => {
+      await renderStage();
+      const button = screen.getByRole("button", { name: "Cómo moverse" });
+      const legend = screen.getByRole("button", { name: "Hábitats" });
+      expect(legend.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getByRole("navigation", { name: "Controles del mapa" })).not.toContainElement(button);
+      expect(button).toBeDisabled();
+      report("ready");
+      expect(button).toBeEnabled();
+    });
+
+    it("closes the open help panel with the first move of the map, like the intro", async () => {
+      localStorage.setItem(SEEN_KEY, "1");
+      await readyStage();
+      click("Cómo moverse");
+      expect(screen.getByRole("region", { name: "Cómo moverse" })).toBeInTheDocument();
+      act(() => fake.onInteract?.());
+      expect(screen.queryByRole("region", { name: "Cómo moverse" })).not.toBeInTheDocument();
+    });
+
+    // On a phone the detail is a bottom sheet over the controls row; the help would peek out above it
+    it("steps aside while the creature detail covers the controls on a phone", async () => {
+      await readyStage();
+      act(() => route.onOpenChange?.(true));
+      expect(intro()).toBeNull();
+      act(() => route.onOpenChange?.(false));
+      expect(intro()).not.toBeNull();
+      expect(localStorage.getItem(SEEN_KEY)).toBeNull();
+    });
+
+    it("closes the help panel when the creature detail opens on a phone", async () => {
+      localStorage.setItem(SEEN_KEY, "1");
+      await readyStage();
+      click("Cómo moverse");
+      act(() => route.onOpenChange?.(true));
+      expect(screen.queryByRole("region", { name: "Cómo moverse" })).not.toBeInTheDocument();
+    });
+
+    // On desktop the detail floats at the top right and the help stays at the bottom left
+    it("stays beside the creature detail on desktop", async () => {
+      wide = true;
+      await readyStage();
+      act(() => route.onOpenChange?.(true));
+      expect(intro()).not.toBeNull();
+    });
+
+    it("reopens the help with the detected input first", async () => {
+      await readyStage();
+      act(() => fake.onInputDetected?.("mouse"));
+      click("Cómo moverse");
+      expect(intro()).toBeNull();
+      const panel = screen.getByRole("region", { name: "Cómo moverse" });
+      expect(within(panel).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+        MOUSE,
+        TOUCHPAD,
+        KEYBOARD,
+        TOUCH,
+      ]);
+    });
+  });
+
 
   describe("entry flight", () => {
     const SKIP = "Saltar el vuelo de entrada";
@@ -617,6 +804,29 @@ describe("MapStage", () => {
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
       report("ready");
       expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    // It explains how to move a map that cannot move yet, and would sit under the skip button's focus
+    it("holds the movement help until the flight ends", async () => {
+      await renderStage();
+      report("ready");
+      expect(screen.queryByRole("button", { name: "Entendido" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cómo moverse" })).toBeDisabled();
+      endFlight();
+      expect(screen.getByRole("button", { name: "Entendido" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cómo moverse" })).toBeEnabled();
+      expect(localStorage.getItem(MAP_HELP_SEEN_KEY)).toBeNull();
+    });
+
+    it("shows the movement help once the flight is skipped, without taking the focus from the map", async () => {
+      fake.handle.skipIntro = vi.fn(() => fake.onIntroEnd?.());
+      await renderStage();
+      report("ready");
+      act(() => click(SKIP));
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Entendido" })).toBeInTheDocument();
+      expect(fake.handle.focus).toHaveBeenCalledOnce();
+      expect(screen.getByRole("button", { name: "Entendido" })).not.toHaveFocus();
     });
   });
 });

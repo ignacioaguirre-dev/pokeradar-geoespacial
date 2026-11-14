@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { closeCreature, CREATURE_PARAM, parseCreatureId } from "@/features/creature/history";
@@ -15,15 +15,20 @@ const loadPanel = () => import("./detail-panel").then((m) => m.DetailPanel);
 type Props = {
   wide: boolean;
   fallbackFocus(): HTMLElement | null;
+  // Whether a creature is open, for what shares the screen with the panel
+  onOpenChange?(open: boolean): void;
 };
 
 // The URL is the panel's state: a shared ?creature= link opens it, and back (popstate) closes it
-export function CreatureRoute({ wide, fallbackFocus }: Props) {
+export function CreatureRoute({ wide, fallbackFocus, onOpenChange }: Props) {
   const t = useTranslations("Creature");
   const params = useSearchParams();
   const [DetailPanel, reloadPanel] = useLazyWhenOnline(loadPanel);
   const [attempt, setAttempt] = useState(0);
   const id = parseCreatureId(params.get(CREATURE_PARAM));
+  const open = id !== null;
+  const reportOpen = useEffectEvent((value: boolean) => onOpenChange?.(value));
+  useEffect(() => reportOpen(open), [open]);
   // Once opened the panel stays mounted, so closing can play its exit
   const [opened, setOpened] = useState(false);
   if (id !== null && !opened) setOpened(true);

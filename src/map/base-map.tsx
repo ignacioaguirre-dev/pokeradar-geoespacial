@@ -11,11 +11,15 @@ import type { HabitatCollection } from "./habitats";
 import { SIGHTINGS_SOURCE, toSightingCollection } from "./sightings";
 import { INTRO_PROJECTION, type IntroFlight, startIntroFlight } from "./intro-flight";
 import { buildStyle } from "./style";
+import { type GestureState, classifyWheel, toPixels, wheelAction, wheelZoomDelta } from "./wheel-gesture";
 
 // Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
 setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
 
 export type MapStatus = "ready" | "error";
+
+// What the person moves the map with, as far as the events tell
+export type MapInput = "touch" | "touchpad" | "mouse";
 
 export type MapHandle = {
   zoomIn(): void;
@@ -38,13 +42,14 @@ type BaseMapProps = {
   intro?: boolean;
   onIntroEnd?(): void;
   onStatusChange(status: MapStatus): void;
+  onInputDetected?(input: MapInput): void;
+  // The person moved or zoomed the map (moves made from code do not count)
+  onInteract?(): void;
   ref?: Ref<MapHandle>;
 };
 
-// Read at call time so a change in the OS setting applies without remounting
-function prefersReducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+const DOM_DELTA_PAGE = 2;
 
 export function BaseMap({
   habitats,
@@ -54,6 +59,8 @@ export function BaseMap({
   intro = false,
   onIntroEnd,
   onStatusChange,
+  onInputDetected,
+  onInteract,
   ref,
 }: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,8 +69,12 @@ export function BaseMap({
   const helpId = useId();
   // The sightings the map's source holds, so a re-render with the same list does not reload it
   const appliedSightings = useRef<readonly CompactSighting[] | undefined>(undefined);
+  // One list per map, read at call time: its matches follows the OS setting without remounting
+  const reducedMotionRef = useRef<MediaQueryList | null>(null);
 
   const reportStatus = useEffectEvent((status: MapStatus) => onStatusChange(status));
+  const reportInput = useEffectEvent((input: MapInput) => onInputDetected?.(input));
+  const reportInteraction = useEffectEvent(() => onInteract?.());
   const reportIntroEnd = useEffectEvent(() => onIntroEnd?.());
 
   // Reads the props of the first render; later changes go through their own effects
@@ -77,6 +88,8 @@ export function BaseMap({
         fitBoundsOptions: { padding, absolutePadding: true },
         maxBounds: MAX_BOUNDS,
         minZoom: MIN_ZOOM,
+        // Its handler reads every wheel as zoom; the wheel listener below pans touchpad swipes instead
+        scrollZoom: false,
         dragRotate: false,
         pitchWithRotate: false,
         touchPitch: false,
@@ -118,6 +131,8 @@ export function BaseMap({
     }
     mapRef.current = map;
     map.touchZoomRotate.disableRotation();
+    const reducedMotion = window.matchMedia(REDUCED_MOTION);
+    reducedMotionRef.current = reducedMotion;
 
     // The surrounding section is the landmark; the canvas is the interactive widget inside it
     const canvas = map.getCanvas();
@@ -155,10 +170,74 @@ export function BaseMap({
     map.on("zoomend", writeZoom);
     flightRef.current = startFlight(map, container);
 
+    // An unanimated touchpad pan ends a move on every wheel event, so the attribute is written once per frame
+    let centerFrame = 0;
+    const writeCenter = () => {
+      centerFrame = 0;
+      const { lng, lat } = map.getCenter();
+      container.setAttribute("data-center", `${lng.toFixed(2)},${lat.toFixed(2)}`);
+    };
+    // Where an eased mouse zoom is heading, so ticks during the animation add up instead of restarting it
+    let zoomTarget: number | null = null;
+    map.on("moveend", () => {
+      zoomTarget = null;
+      if (centerFrame === 0) centerFrame = requestAnimationFrame(writeCenter);
+    });
+    // MapLibre's own handlers (drag, touch, keyboard) and the wheel below pass the DOM event along
+    map.on("movestart", (event) => {
+      if (event.originalEvent) reportInteraction();
+    });
+
+    const wheelTarget = map.getCanvasContainer();
+    let gesture: GestureState | null = null;
+    let reported: MapInput | null = null;
+    const report = (input: MapInput) => {
+      if (input === reported) return;
+      reported = input;
+      reportInput(input);
+    };
+    // A touchpad click is a mouse pointer too, so only a finger is told apart here
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType === "touch") report("touch");
+    };
+    const onWheel = (event: WheelEvent) => {
+      // The flight's own capture listener usually got here first; ending it again is a no-op, and the wheel
+      // must never pan or zoom a camera that is still flying
+      flightRef.current?.cancel();
+      gesture = classifyWheel(event, gesture, event.timeStamp);
+      report(gesture.kind);
+      const eventData = { originalEvent: event };
+      // Reading the size forces layout, and only page deltas need it
+      const height = event.deltaMode === DOM_DELTA_PAGE ? wheelTarget.clientHeight : 0;
+      if (wheelAction(event, gesture) === "pan") {
+        const [x, y] = toPixels(event, height);
+        if (x === 0 && y === 0) return;
+        event.preventDefault();
+        map.panBy([x, y], { animate: false }, eventData);
+        return;
+      }
+      const delta = wheelZoomDelta(event, height);
+      if (delta === 0) return;
+      event.preventDefault();
+      const rect = wheelTarget.getBoundingClientRect();
+      const around = map.unproject([event.clientX - rect.left, event.clientY - rect.top]);
+      const zoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), (zoomTarget ?? map.getZoom()) + delta));
+      // Mouse ticks are coarse and far apart, so they ease; a pinch streams many small steps that follow the fingers
+      const animate = gesture.kind === "mouse" && !reducedMotion.matches;
+      map.easeTo({ zoom, around, animate, duration: 200 }, eventData);
+      zoomTarget = animate ? zoom : null;
+    };
+    wheelTarget.addEventListener("wheel", onWheel, { passive: false });
+    wheelTarget.addEventListener("pointerdown", onPointerDown);
+
     return () => {
+      cancelAnimationFrame(centerFrame);
+      wheelTarget.removeEventListener("wheel", onWheel);
+      wheelTarget.removeEventListener("pointerdown", onPointerDown);
       flightRef.current?.dispose();
       flightRef.current = null;
       mapRef.current = null;
+      reducedMotionRef.current = null;
       map.remove();
     };
   }, [helpId]);
@@ -171,6 +250,7 @@ export function BaseMap({
   }, [top, right, bottom, left]);
 
   useImperativeHandle(ref, () => {
+    const prefersReducedMotion = () => reducedMotionRef.current?.matches ?? false;
     function zoomBy(delta: number) {
       const map = mapRef.current;
       if (!map) return;
