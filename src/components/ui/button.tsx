@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useId, type ButtonHTMLAttributes } from "react";
+import { useId, type ComponentPropsWithRef } from "react";
 import { type ButtonVariant, buttonClass } from "./button-styles";
 
 type Props = {
@@ -9,7 +9,7 @@ type Props = {
   loading?: boolean;
   disabledReason?: string;
   loadingLabel?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>;
+} & ComponentPropsWithRef<"button">;
 
 export function Button({
   variant = "primary",

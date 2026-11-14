@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Fence } from "@/domain/geometry/types";
+import type { Fence, Ring } from "@/domain/geometry/types";
 import { fromCompact } from "@/domain/sightings/compact";
 import { detect } from "@/domain/sightings/detect";
 import type { FenceDetection, SightingsPayload } from "./types";
@@ -15,14 +15,21 @@ export function displayName(slug: string): string {
   return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
+// The fence the person drew; no preset uses this id
+export const OWN_FENCE_ID = "own";
+
+type OwnFence = { readonly id: typeof OWN_FENCE_ID; readonly ring: Ring };
+
 // The chosen fence and what it detects. Runs on the client over the sightings the page already sent.
 // payload: undefined while it streams, null when the catalog failed
 export function useFenceSweep<F extends Fence>(fences: readonly F[], payload: SightingsPayload | null | undefined) {
   // The run count makes the active fence, chosen again, a new value: the map replays its event
-  const [chosen, setChosen] = useState<{ id: string; run: number } | null>(null);
-  const fence = useMemo(() => {
-    const found = fences.find((f) => f.id === chosen?.id);
-    return found && chosen ? { ...found, run: chosen.run } : null;
+  const [chosen, setChosen] = useState<{ id: string; run: number; ring?: Ring } | null>(null);
+  const fence = useMemo((): ((F | OwnFence) & { run: number }) | null => {
+    if (!chosen) return null;
+    if (chosen.ring) return { id: OWN_FENCE_ID, ring: chosen.ring, run: chosen.run };
+    const found = fences.find((f) => f.id === chosen.id);
+    return found ? { ...found, run: chosen.run } : null;
   }, [fences, chosen]);
 
   // Decoded once per payload, not per fence
@@ -48,5 +55,8 @@ export function useFenceSweep<F extends Fence>(fences: readonly F[], payload: Si
     if (fences.some((f) => f.id === id)) setChosen((last) => ({ id, run: (last?.run ?? 0) + 1 }));
   };
 
-  return { fence, detection, choose };
+  // Replaces whichever fence was active, preset or drawn
+  const draw = (ring: Ring) => setChosen((last) => ({ id: OWN_FENCE_ID, ring, run: (last?.run ?? 0) + 1 }));
+
+  return { fence, detection, choose, draw };
 }

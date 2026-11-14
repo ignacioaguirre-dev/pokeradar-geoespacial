@@ -11,11 +11,14 @@ import type { HabitatCollection } from "./habitats";
 import { SIGHTINGS_SOURCE, toSightingCollection } from "./sightings";
 import { INTRO_PROJECTION, type IntroFlight, startIntroFlight } from "./intro-flight";
 import { buildStyle } from "./style";
+import type { LngLat } from "@/domain/geometry/types";
 import { CONTROL_MOVE } from "./sweep";
+import { type FenceDraftProps, reticlePoint, useFenceDraft } from "./use-fence-draft";
 import { type SweepProps, useSweep } from "./use-sweep";
 import { type GestureState, classifyWheel, toPixels, wheelAction, wheelZoomDelta } from "./wheel-gesture";
 
 export type { SweepCreature, SweepFence, SweepProps } from "./use-sweep";
+export type { FenceDraftProps } from "./use-fence-draft";
 
 // Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
 setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
@@ -31,6 +34,8 @@ export type MapHandle = {
   resetView(): void;
   skipIntro(): void;
   focus(): void;
+  // Where the drawing reticle points; null before the map exists
+  reticlePoint(): LngLat | null;
 };
 
 type Padding = { top: number; right: number; bottom: number; left: number };
@@ -43,6 +48,8 @@ type BaseMapProps = {
   padding: Padding;
   // The chosen fence and what it detected; the sweep logic lives in ./use-sweep
   sweep?: SweepProps;
+  // Set while the person draws their own fence: taps and Enter become points, and the reticle shows
+  draft?: FenceDraftProps | null;
   // Read when the map is created: fly in from space instead of opening on the final frame.
   // Later it only keeps the space background behind the globe until the page reports the flight over
   intro?: boolean;
@@ -63,6 +70,7 @@ export function BaseMap({
   labels,
   padding,
   sweep,
+  draft,
   intro = false,
   onIntroEnd,
   onStatusChange,
@@ -256,6 +264,8 @@ export function BaseMap({
 
   // A sweep moves the camera, so a flight still running ends first instead of snapping back over it
   useSweep(loadedMap, sweep, padding, () => flightRef.current?.cancel());
+  const reticleRef = useRef<SVGSVGElement>(null);
+  useFenceDraft(loadedMap, draft, reticleRef);
 
   const { top, right, bottom, left } = padding;
   useEffect(() => {
@@ -284,6 +294,7 @@ export function BaseMap({
       },
       skipIntro: () => flightRef.current?.cancel(),
       focus: () => mapRef.current?.getCanvas().focus({ preventScroll: true }),
+      reticlePoint: () => (mapRef.current ? reticlePoint(mapRef.current) : null),
     };
   }, [top, right, bottom, left]);
 
@@ -295,6 +306,27 @@ export function BaseMap({
       <p id={helpId} className="sr-only">
         {labels.keyboardHelp}
       </p>
+      {draft ? <Reticle ref={reticleRef} /> : null}
     </>
+  );
+}
+
+// Over the map's center, where reticlePoint reads; useFenceDraft places it and the map moves under it
+function Reticle({ ref }: { ref: Ref<SVGSVGElement> }) {
+  return (
+    <svg
+      ref={ref}
+      aria-hidden="true"
+      data-reticle
+      viewBox="0 0 32 32"
+      // Centered on its point by the negative margins, since the translate is the point itself
+      className="pointer-events-none invisible absolute top-0 left-0 -mt-4 -ml-4 size-8 text-sweep"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      {/* Open in the middle so the spot it marks stays visible */}
+      <path d="M16 2v10M16 20v10M2 16h10M20 16h10" />
+    </svg>
   );
 }
