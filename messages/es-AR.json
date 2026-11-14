@@ -193,5 +193,28 @@
     "sea": "Mar",
     "urban": "Ciudad",
     "waters-edge": "Orilla"
+  },
+  "Creature": {
+    "region": "Detalle de criatura",
+    "close": "Cerrar",
+    "loading": "Cargando criatura…",
+    "errorTitle": "No se pudo cargar la criatura.",
+    "errorBody": "Revisá tu conexión y probá de nuevo.",
+    "retry": "Reintentar",
+    "notFoundTitle": "Esta criatura no existe.",
+    "types": "Tipos",
+    "stats": "Estadísticas",
+    "height": "Altura",
+    "weight": "Peso",
+    "cry": "Escuchar grito",
+    "attribution": "Datos de PokéAPI"
+  },
+  "Stats": {
+    "hp": "PS",
+    "attack": "Ataque",
+    "defense": "Defensa",
+    "specialAttack": "Ataque especial",
+    "specialDefense": "Defensa especial",
+    "speed": "Velocidad"
   }
 }

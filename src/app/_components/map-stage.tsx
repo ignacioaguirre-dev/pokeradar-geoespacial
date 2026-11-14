@@ -2,13 +2,14 @@
 
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { useResolved } from "@/hooks/use-resolved";
 import type { CompactSighting } from "@/domain/sightings/compact";
 import type { MapHandle, MapStatus } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
+import { CreatureRoute } from "./creature-route";
 import { HabitatLegend } from "./habitat-legend";
 
 // The notices come from MapStage, so the chunk shows nothing while it downloads.
@@ -216,6 +217,11 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
           </nav>
         </div>
       )}
+      {/* Its own boundary: reading the URL must not keep the map and its controls out of the prerender.
+          Independent of the map's phase, so the detail shows even when the map cannot load */}
+      <Suspense fallback={null}>
+        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} />
+      </Suspense>
     </>
   );
 }

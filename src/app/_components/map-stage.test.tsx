@@ -53,6 +53,8 @@ vi.mock("@/map/base-map", async () => {
 });
 
 vi.mock("@/map/supports-webgl2", () => ({ supportsWebGL2: () => fake.webgl2 }));
+// The detail reads the URL through the Next router, which these tests do not mount
+vi.mock("./creature-route", () => ({ CreatureRoute: () => null }));
 
 const WIDE = "(min-width: 768px)";
 let wide = false;

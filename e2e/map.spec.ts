@@ -152,11 +152,17 @@ test.describe("with WebGL2", () => {
     for (const { locator, offset } of stops) {
       await page.keyboard.press("Tab");
       await expect(locator).toBeFocused();
-      const outline = await locator.evaluate((el) => {
-        const s = getComputedStyle(el);
-        return { style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor, offset: s.outlineOffset };
-      });
-      expect(outline, await locator.evaluate((el) => el.outerHTML.slice(0, 80))).toEqual({ ...ring, offset });
+      // Buttons transition their colors, so the ring is read once the transition settles
+      await expect
+        .poll(
+          () =>
+            locator.evaluate((el) => {
+              const s = getComputedStyle(el);
+              return { style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor, offset: s.outlineOffset };
+            }),
+          { message: await locator.evaluate((el) => el.outerHTML.slice(0, 80)) },
+        )
+        .toEqual({ ...ring, offset });
     }
 
     const map = page.locator("[data-map]");

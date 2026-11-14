@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { contrastRatio } from "../src/domain/color/contrast";
+import { CURVE_OUT } from "../src/components/ui/motion-tokens";
 import { COLOR_USAGE } from "../src/domain/color/usage";
 
 const SRC = join(__dirname, "..", "src");
@@ -149,5 +150,21 @@ describe("colors reserved for the map", () => {
       (f) => !ALLOWED.some((a) => f.endsWith(a)) && utility.test(readFileSync(f, "utf8")),
     );
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("motion tokens", () => {
+  // motion needs the curve as numbers; this keeps that copy tied to the CSS token
+  it("CURVE_OUT matches --curve-out", () => {
+    const raw = /--curve-out:\s*cubic-bezier\(([^)]+)\);/.exec(CSS)?.[1];
+    expect(raw?.split(",").map(Number)).toEqual([...CURVE_OUT]);
+  });
+
+  // The stylesheet is the source; any script copy outside motion-tokens drifts silently
+  it("no other module keeps its own copy of the curve", () => {
+    const copies = files(SRC).filter(
+      (f) => /\.tsx?$/.test(f) && !f.endsWith("motion-tokens.ts") && /0\.16,\s*1,\s*0\.3,\s*1/.test(readFileSync(f, "utf8")),
+    );
+    expect(copies).toEqual([]);
   });
 });

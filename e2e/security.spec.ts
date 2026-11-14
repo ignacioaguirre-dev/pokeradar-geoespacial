@@ -6,6 +6,9 @@ test("/ sends the security headers", async ({ request }) => {
   const headers = response.headers();
   const csp = headers["content-security-policy"] ?? "";
   expect(csp).toContain("connect-src 'self' https://tiles.openfreemap.org");
+  // Only GitHub's raw host joins, for PokéAPI's sprites and cries
+  expect(csp).toContain("img-src 'self' data: blob: https://raw.githubusercontent.com;");
+  expect(csp).toContain("media-src 'self' https://raw.githubusercontent.com;");
   expect(csp).toContain("frame-ancestors 'none'");
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
