@@ -12,6 +12,8 @@
     "zoomIn": "Acercar",
     "zoomOut": "Alejar",
     "reset": "Ver Argentina",
+    "skipIntro": "Saltar",
+    "skipIntroLabel": "Saltar el vuelo de entrada",
     "loading": "Cargando el mapa…",
     "slow": "El mapa está tardando más de lo normal.",
     "errorTitle": "No se pudo cargar el mapa.",
@@ -25,6 +27,15 @@
     "attributionData": "Datos de",
     "legend": "Hábitats",
     "legendList": "Hábitats en el mapa"
+  },
+  "MapHelp": {
+    "title": "Cómo moverse",
+    "touch": "Arrastrá con un dedo para moverte · Pellizcá para acercar o alejar",
+    "touchpad": "Touchpad: dos dedos para moverte · pellizcá para acercar",
+    "mouse": "Mouse: arrastrá para moverte · rueda para acercar",
+    "keyboard": "Teclado: flechas para moverte · + y − para acercar",
+    "dismiss": "Entendido",
+    "close": "Cerrar"
   },
   "Button": {
     "loading": "Cargando…"
@@ -108,6 +119,7 @@
         "map-coast": "Restinga de Península Valdés en bajamar",
         "map-border": "Basalto bajo luna",
         "map-province": "Basalto húmedo",
+        "map-space": "Cielo nocturno de la Puna",
         "biome-forest": "Selva de las yungas salteñas",
         "biome-grassland": "Pastizal de la pampa en primavera",
         "biome-waters-edge": "Esteros del Iberá",

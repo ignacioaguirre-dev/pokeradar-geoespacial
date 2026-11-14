@@ -21,7 +21,7 @@ export function preloadCreaturePanel(): void {
 type Props = {
   wide: boolean;
   fallbackFocus(): HTMLElement | null;
-  // The creature in the URL, so the map can fly to it; null once the panel closes
+  // The creature in the URL, so the map can fly to it and what shares the screen makes room; null once it closes
   onChange?(id: number | null): void;
 };
 

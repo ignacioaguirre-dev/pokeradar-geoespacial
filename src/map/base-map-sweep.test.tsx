@@ -46,6 +46,7 @@ const fake = vi.hoisted(() => {
     flyTo = vi.fn();
     jumpTo = vi.fn();
     easeTo = vi.fn();
+    panBy = vi.fn();
     touchZoomRotate = { disableRotation: vi.fn() };
 
     constructor(public options: { container: HTMLElement; style: { sources: Record<string, unknown> } }) {
@@ -81,6 +82,21 @@ const fake = vi.hoisted(() => {
     getCanvas() {
       return this.canvas;
     }
+    getCanvasContainer() {
+      return this.container;
+    }
+    getMinZoom() {
+      return 2;
+    }
+    getMaxZoom() {
+      return 22;
+    }
+    getCenter() {
+      return { lng: -64, lat: -38 };
+    }
+    unproject([x, y]: [number, number]) {
+      return { lng: x / this.scale, lat: -y / this.scale };
+    }
     getZoom() {
       return this.zoom;
     }
@@ -104,6 +120,12 @@ const fake = vi.hoisted(() => {
 
 vi.mock("maplibre-gl", () => ({ Map: fake.FakeMap, Marker: fake.FakeMarker, setWorkerUrl: vi.fn() }));
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
+// The flight itself is covered in intro-flight.test.ts; here only whether the sweep ends it first
+const flight = vi.hoisted(() => ({ start: vi.fn(), cancel: vi.fn(), dispose: vi.fn() }));
+vi.mock("./intro-flight", async (original) => ({
+  ...(await original<typeof import("./intro-flight")>()),
+  startIntroFlight: flight.start,
+}));
 vi.mock("./colors", () => ({
   readMapColors: () => ({
     sea: "s",
@@ -116,6 +138,7 @@ vi.mock("./colors", () => ({
     sighting: "g",
     sweep: "#e6d3b0",
     trace: "#d9a55b",
+    space: "k",
     biome: { forest: "f", grassland: "g", "waters-edge": "w", mountain: "m", "rough-terrain": "r", sea: "s" },
   }),
 }));
@@ -205,6 +228,9 @@ function playFrames() {
 }
 
 beforeEach(() => {
+  flight.start.mockReset().mockReturnValue({ cancel: flight.cancel, dispose: flight.dispose });
+  flight.cancel.mockReset();
+  flight.dispose.mockReset();
   fake.FakeMap.instances = [];
   fake.FakeMarker.instances = [];
   reduced = false;
@@ -330,11 +356,12 @@ describe("BaseMap sweep", () => {
     emit("moveend");
     now += 16;
     expect(liveMarkers()).toHaveLength(0);
-    expect(frames.size).toBe(1);
+    // The sweep's next frame, and the map writing its new center once
+    expect(frames.size).toBe(2);
 
     rerender(sweep({ fence: IBERA }));
     expect(window.cancelAnimationFrame).toHaveBeenCalled();
-    expect(frames.size).toBe(0);
+    expect(frames.size).toBe(1);
     expect((lastMap().data.get("sweep-fence") as { geometry: { coordinates: unknown[] } }).geometry.coordinates).toEqual(
       [...IBERA.ring, IBERA.ring[0]],
     );
@@ -370,7 +397,8 @@ describe("BaseMap sweep", () => {
     const { unmount } = renderMap(sweep());
     emit("load");
     emit("moveend");
-    expect(frames.size).toBe(1);
+    // The sweep's next frame, and the map writing its new center once
+    expect(frames.size).toBe(2);
     unmount();
     expect(window.cancelAnimationFrame).toHaveBeenCalled();
     expect(frames.size).toBe(0);
@@ -511,6 +539,81 @@ describe("BaseMap sweep", () => {
       emit("moveend");
       playFrames();
       expect(lastMap().fitBounds).toHaveBeenCalledOnce();
+    });
+
+    // The wheel handler (and drag, pinch, keyboard) passes the DOM event along with the camera move
+    it("a gesture during the sweep keeps the person's camera: it does not close in afterwards", () => {
+      renderMap(sweep());
+      emit("load");
+      lastMap().scale = 20;
+      emit("moveend");
+      fireEvent.wheel(lastMap().container, { deltaX: 30, deltaMode: 0 });
+      expect(lastMap().panBy).toHaveBeenCalledOnce();
+      emit("movestart", { originalEvent: new WheelEvent("wheel") });
+      playFrames();
+      expect(liveMarkers()).toHaveLength(2);
+      expect(lastMap().fitBounds).toHaveBeenCalledOnce();
+    });
+
+    it("the sweep's own camera moves do not count as a gesture", () => {
+      renderMap(sweep());
+      emit("load");
+      lastMap().scale = 20;
+      emit("movestart", {});
+      emit("moveend");
+      playFrames();
+      expect(lastMap().fitBounds).toHaveBeenCalledTimes(2);
+    });
+
+    it("a gesture during a previous fence does not hold back the next one", () => {
+      const { rerender } = renderMap(sweep());
+      emit("load");
+      emit("movestart", { originalEvent: new WheelEvent("wheel") });
+      rerender(sweep({ fence: PAMPA }));
+      lastMap().scale = 20;
+      emit("moveend");
+      playFrames();
+      expect(lastMap().fitBounds).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe("with the entry flight", () => {
+    function renderFlying(props: SweepProps) {
+      const view = render(
+        <BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} sweep={props} />,
+      );
+      const rerender = (next: SweepProps) =>
+        view.rerender(
+          <BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} sweep={next} />,
+        );
+      return { rerender };
+    }
+
+    // The flight lands with a jump to its final frame: left running, it would undo the fence's framing
+    it("a fence chosen while flying ends the flight before framing it", () => {
+      const { rerender } = renderFlying(sweep({ fence: null }));
+      emit("load");
+      expect(flight.cancel).not.toHaveBeenCalled();
+      rerender(sweep());
+      expect(flight.cancel).toHaveBeenCalledOnce();
+      expect(lastMap().fitBounds).toHaveBeenCalledOnce();
+      expect(flight.cancel.mock.invocationCallOrder[0]).toBeLessThan(lastMap().fitBounds.mock.invocationCallOrder[0]);
+    });
+
+    it("a creature opened while flying ends the flight before flying to it", () => {
+      const { rerender } = renderFlying(sweep({ fence: null }));
+      emit("load");
+      rerender(sweep({ fence: null, focus: 7 }));
+      expect(flight.cancel).toHaveBeenCalledOnce();
+      expect(lastMap().flyTo).toHaveBeenCalledOnce();
+      expect(flight.cancel.mock.invocationCallOrder[0]).toBeLessThan(lastMap().flyTo.mock.invocationCallOrder[0]);
+    });
+
+    it("without a fence or a creature the flight goes on", () => {
+      const { rerender } = renderFlying(sweep({ fence: null }));
+      emit("load");
+      rerender(sweep({ fence: null, creatures: CREATURES.map((c) => ({ ...c })) }));
+      expect(flight.cancel).not.toHaveBeenCalled();
     });
   });
 

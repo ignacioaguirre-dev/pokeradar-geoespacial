@@ -10,14 +10,22 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { FENCES } from "@/data/fences";
 import { spriteUrl } from "@/features/catalog/sprite";
-import { openCreature } from "@/features/creature/history";
+import { CREATURE_PARAM, openCreature, parseCreatureId } from "@/features/creature/history";
+import {
+  getSnapshot as hasSeenMapHelp,
+  markMapHelpSeen,
+  subscribe as subscribeMapHelp,
+} from "@/features/map-help/storage";
 import type { SightingsPayload } from "@/features/sweep/types";
 import { useFenceSweep } from "@/features/sweep/use-fence-sweep";
+import { usePointerKind } from "@/hooks/use-pointer-kind";
 import { useResolved } from "@/hooks/use-resolved";
-import type { MapHandle, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
+import type { MapHandle, MapInput, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
 import { HabitatLegend } from "./habitat-legend";
+import { introPlayed } from "./intro-played";
+import { introLines, MapHelpButton, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
 
 // The notices come from MapStage, so the chunk shows nothing while it downloads.
 // HabitatMap carries the habitat data, so it rides in this deferred chunk instead of the initial JS
@@ -89,6 +97,7 @@ function whenIdle(task: () => void): () => void {
 }
 
 const WIDE_QUERY = "(min-width: 768px)";
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 const ICON_PLUS = (
   <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -134,12 +143,24 @@ function subscribeOnline(onChange: () => void) {
   };
 }
 
+// The server cannot read storage, so it renders as seen and the intro only appears after hydration.
+// The store is the single source of truth: dismissing writes there and every reader follows
+function useHelpSeen(): boolean {
+  return useSyncExternalStore(subscribeMapHelp, hasSeenMapHelp, () => true);
+}
+
 function useOnline(): boolean {
   return useSyncExternalStore(
     subscribeOnline,
     () => navigator.onLine,
     () => true,
   );
+}
+
+// A shared creature link lands on its detail, whose desktop panel would also cover the skip button
+function shouldFly(): boolean {
+  if (introPlayed.current || window.matchMedia(REDUCED_MOTION_QUERY).matches) return false;
+  return parseCreatureId(new URLSearchParams(window.location.search).get(CREATURE_PARAM)) === null;
 }
 
 type Phase = "loading" | "slow" | "ready" | "error" | "offline";
@@ -158,11 +179,14 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const supported = useWebGL2Support();
   const wide = useWideViewport();
   const online = useOnline();
+  const pointer = usePointerKind();
+  const helpSeen = useHelpSeen();
+  // A ref, not state: it changes mid-gesture and is only read when the help panel opens
+  const detectedRef = useRef<MapInput | null>(null);
   const mapRef = useRef<MapHandle>(null);
+  const helpRef = useRef<MapHelpButtonHandle>(null);
   const regionRef = useRef<HTMLElement>(null);
   const sweepPanelRef = useRef<HTMLDivElement>(null);
-  const [key, setKey] = useState(0);
-  const [phase, setPhase] = useState<Phase>("loading");
   const { fence, detection, choose } = useFenceSweep(FENCES, payload);
   // The creature open in the detail, as the URL says
   const [focus, setFocus] = useState<number | null>(null);
@@ -185,12 +209,27 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
     for (const { sprite } of creatures) preload(sprite, { as: "image", crossOrigin: "anonymous" });
   }, [creatures]);
 
+  const skipRef = useRef<HTMLDivElement>(null);
+  const [key, setKey] = useState(0);
+  const [phase, setPhase] = useState<Phase>("loading");
+  // The server cannot read the motion setting and decides false; everything that depends on it waits for
+  // `mounted`, which is null during hydration, so both renders agree
+  const [intro] = useState(() => typeof window !== "undefined" && shouldFly());
+  const [introDone, setIntroDone] = useState(false);
+  // Only the first map flies: a retry already lost the moment
+  const flies = intro && key === 0;
+
   const mounted = supported === true;
   const waiting = phase === "loading" || phase === "slow";
 
   useEffect(() => {
     if (phase === "ready") return whenIdle(preloadCreaturePanel);
   }, [phase]);
+
+  // Marked as soon as the flight can start: a remount (leaving the page and coming back) lands directly
+  useEffect(() => {
+    if (mounted && flies) introPlayed.current = true;
+  }, [mounted, flies]);
 
   // Restarts with each mounted map (retry changes key) and stops once the map settles
   useEffect(() => {
@@ -228,6 +267,60 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
           ? "offline"
           : phase;
   const ready = visible === "ready";
+  // Hidden on any failure: the notice and its retry take over
+  const flying = mounted && flies && !introDone && (visible === "loading" || visible === "slow" || ready);
+  // The map is ready while it flies, but its controls wait for the final frame
+  const interactive = ready && !flying;
+  // On a phone the detail is a bottom sheet over the controls row, so the help waits under it until it closes.
+  // It also waits for the flight: it explains how to move a map the person cannot move yet
+  const sheetOver = focus !== null && !wide;
+  const showHelp = interactive && pointer !== null && !helpSeen && !sheetOver;
+
+  // Remembered even when storage fails: then it only lasts until the page reloads
+  function dismissHelp() {
+    if (!showHelp) return;
+    markMapHelpSeen();
+  }
+
+  // The first move of the map closes whichever help is showing, the intro or the panel
+  function handleInteract() {
+    dismissHelp();
+    helpRef.current?.close();
+  }
+
+  function handleCreatureChange(id: number | null) {
+    setFocus(id);
+    if (id !== null && !wide) helpRef.current?.close();
+  }
+
+  function handleInputDetected(input: MapInput) {
+    detectedRef.current = input;
+  }
+
+  function acknowledgeHelp() {
+    dismissHelp();
+    // The focused Entendido unmounts; the help button is where this help lives from now on
+    helpRef.current?.focus();
+  }
+
+  function endIntro() {
+    // The skip button unmounts with the flight; the map is where the user was heading
+    if (skipRef.current?.contains(document.activeElement)) focusMap();
+    setIntroDone(true);
+  }
+
+  function focusMap() {
+    // Before its chunk arrives there is no map yet, only the region that will hold it
+    if (mapRef.current) mapRef.current.focus();
+    else regionRef.current?.focus({ preventScroll: true });
+  }
+
+  function skipIntro() {
+    // Also covers a skip before the map exists: it is then created without a flight
+    setIntroDone(true);
+    mapRef.current?.skipIntro();
+    focusMap();
+  }
 
   const sweep: SweepProps = {
     // Only once there is something to trace: rings over a fence still loading would play twice, or for nothing
@@ -266,6 +359,18 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   // Flow order inside the page's bottom column: notice above the controls, so it never pushes them
   return (
     <>
+      {flying ? (
+        // Top right, away from the brand and the bottom controls, where a skip is expected.
+        // First in the DOM, so it is also the first Tab stop while the flight runs
+        <div
+          ref={skipRef}
+          className="pointer-events-auto absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] z-10"
+        >
+          <Button variant="secondary" aria-label={t("skipIntroLabel")} onClick={skipIntro} className="px-4!">
+            {t("skipIntro")}
+          </Button>
+        </div>
+      ) : null}
       {/* Focusable only from code (retry); the inset ring matches the canvas so it is not clipped */}
       <section
         ref={regionRef}
@@ -282,7 +387,11 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
             sweep={sweep}
             labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
             padding={wide ? PADDING_WIDE : PADDING_NARROW}
+            intro={flies && !introDone}
+            onIntroEnd={endIntro}
             onStatusChange={handleStatus}
+            onInputDetected={handleInputDetected}
+            onInteract={handleInteract}
           />
         ) : null}
       </section>
@@ -296,6 +405,9 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
         <FencePicker
           fences={FENCES.map(({ id }) => ({ id, name: tFences(id) }))}
           active={fence?.id ?? null}
+          // Like the map controls it waits for the final frame, yet without a flight it works before the map does
+          // (the list opens the detail even without WebGL). The map itself ends a flight a sweep would land over
+          disabled={flying}
           onChoose={choose}
         />
         <SweepReading
@@ -308,15 +420,32 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
       </div>
       {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
       {supported === false ? null : (
-        // Legend left, controls right: the same order on screen and for the keyboard.
+        // Legend and help left, controls right: the same order on screen and for the keyboard.
         // On phones they do not fit side by side: the legend keeps the first line and the controls wrap below
-        <div className="flex w-full flex-wrap items-end justify-between gap-2">
-          <HabitatLegend disabled={!ready} />
+        // Using any control counts as the first interaction, so it also closes the intro
+        <div className="relative flex w-full flex-wrap items-end justify-between gap-2" onClickCapture={dismissHelp}>
+          {/* Floats above the controls instead of joining the column, which would grow upward as a layout shift */}
+          {showHelp ? (
+            // Left, by the help button: on desktop the right side belongs to the creature detail
+            <div className="pointer-events-auto absolute left-0 bottom-full mb-2 w-full max-w-sm">
+              <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
+            </div>
+          ) : null}
+          {/* The help button keeps its visible label, which does not fit beside the map controls on a 360 px phone,
+              so it rides in the legend's row: both explain the map, the nav moves it */}
+          <div className="flex gap-2">
+            <HabitatLegend disabled={!interactive} />
+            <MapHelpButton
+              ref={helpRef}
+              lines={() => panelLines(pointer, detectedRef.current)}
+              disabled={!interactive}
+            />
+          </div>
           <nav aria-label={t("controls")} className="pointer-events-auto relative ml-auto flex shrink-0 gap-2">
           <Button
             variant="secondary"
             aria-label={t("zoomIn")}
-            disabled={!ready}
+            disabled={!interactive}
             onClick={() => mapRef.current?.zoomIn()}
             className="px-0!"
           >
@@ -325,13 +454,13 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
           <Button
             variant="secondary"
             aria-label={t("zoomOut")}
-            disabled={!ready}
+            disabled={!interactive}
             onClick={() => mapRef.current?.zoomOut()}
             className="px-0!"
           >
             {ICON_MINUS}
           </Button>
-          <Button variant="secondary" disabled={!ready} onClick={() => mapRef.current?.resetView()}>
+          <Button variant="secondary" disabled={!interactive} onClick={() => mapRef.current?.resetView()}>
             {t("reset")}
           </Button>
           </nav>
@@ -340,7 +469,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
       {/* Its own boundary: reading the URL must not keep the map and its controls out of the prerender.
           Independent of the map's phase, so the detail shows even when the map cannot load */}
       <Suspense fallback={null}>
-        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} onChange={setFocus} />
+        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} onChange={handleCreatureChange} />
       </Suspense>
     </>
   );

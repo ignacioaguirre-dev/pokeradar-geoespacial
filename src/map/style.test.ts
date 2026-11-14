@@ -4,6 +4,8 @@ import type { MapColors } from "./colors";
 import { BIOME_OPACITY } from "@/domain/color/biome";
 import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { CompactSighting } from "@/domain/sightings/compact";
+import { MIN_ZOOM } from "./argentina";
+import { INTRO_PROJECTION } from "./intro-flight";
 import { buildStyle } from "./style";
 
 // Obviously fake values: the test only checks that every color comes from here
@@ -18,6 +20,7 @@ const COLORS: MapColors = {
   sighting: "marker-sighting",
   sweep: "marker-sweep",
   trace: "marker-trace",
+  space: "marker-space",
   biome: {
     forest: "marker-forest",
     grassland: "marker-grassland",
@@ -107,6 +110,30 @@ describe("buildStyle", () => {
       for (const font of fonts as string[])
         expect(served, layer.id).toContain(font);
     }
+  });
+});
+
+describe("sky and projection", () => {
+  // MapLibre's default sky is light blue with a white horizon; any sky the globe morph exposes must stay dark
+  it("paints the sky with the space color", () => {
+    expect(style.sky?.["sky-color"]).toBe(COLORS.space);
+    expect(style.sky?.["horizon-color"]).toBe(COLORS.space);
+  });
+
+  // Its color is fixed in MapLibre's shader; the globe's edge is a rim line of our own (see globe-rim)
+  it("turns MapLibre's atmosphere halo off", () => {
+    expect(style.sky?.["atmosphere-blend"]).toBe(0);
+  });
+
+  // The water polygons end on the antimeridian, and their outline would cross the opening globe and the morph.
+  // The final frame never goes below MIN_ZOOM, so the map at rest keeps its coastline
+  it("draws the coastline only from the lowest final zoom", () => {
+    expect(layers.find((l) => l.id === "coastline")?.minzoom).toBe(MIN_ZOOM);
+  });
+
+  it("is flat unless a projection is given", () => {
+    expect(style.projection).toBeUndefined();
+    expect(buildStyle(COLORS, HABITATS, SIGHTINGS, INTRO_PROJECTION).projection).toEqual(INTRO_PROJECTION);
   });
 });
 

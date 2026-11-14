@@ -44,8 +44,14 @@ const NO_CREATURES: readonly SweepCreature[] = [];
 const NO_PADDING: PaddingOptions = { top: 0, right: 0, bottom: 0, left: 0 };
 
 // Draws the sweep on a loaded map; null until the style has loaded, as the sweep sources live in it.
-// basePadding is the map's own, which the fence and creature cameras replace while they last
-export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined, basePadding: PaddingOptions): void {
+// basePadding is the map's own, which the fence and creature cameras replace while they last.
+// endIntro runs before every camera move of the sweep: an intro flight left running would land over it
+export function useSweep(
+  map: MapLibreMap | null,
+  sweep: SweepProps | undefined,
+  basePadding: PaddingOptions,
+  endIntro: () => void = () => {},
+): void {
   const fence = sweep?.fence ?? null;
   const creatures = sweep?.creatures ?? NO_CREATURES;
   const focus = sweep?.focus ?? null;
@@ -55,6 +61,7 @@ export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined,
   const fly = useEffectEvent((map: MapLibreMap, id: number) => {
     const creature = creatures.find((c) => c.id === id);
     if (!creature || !sweep) return;
+    endIntro();
     const camera = {
       center: [creature.point[0], creature.point[1]] as [number, number],
       zoom: Math.max(map.getZoom(), CREATURE_ZOOM),
@@ -73,8 +80,9 @@ export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined,
   const intent = useEffectEvent((id: number) => sweep?.onIntent(id));
 
   // A fence only comes with the sweep props, so they are there whenever this runs
-  const start = useEffectEvent((map: MapLibreMap, fence: SweepFence) =>
-    runSweep(map, {
+  const start = useEffectEvent((map: MapLibreMap, fence: SweepFence) => {
+    endIntro();
+    return runSweep(map, {
       fence,
       creatures,
       padding: sweep?.fencePadding() ?? NO_PADDING,
@@ -82,8 +90,8 @@ export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined,
       traceColor: readMapColors().trace,
       onSelect: select,
       onIntent: intent,
-    }),
-  );
+    });
+  });
 
   // Cancelling on change and on unmount never touches the sources: on unmount the map is already gone
   useEffect(() => {
@@ -97,6 +105,7 @@ export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined,
 
   // flyTo leaves the detail's padding on the map; once the detail closes, the map gets its own back
   const restore = useEffectEvent((map: MapLibreMap) => {
+    endIntro();
     const camera = { padding: basePadding };
     if (reducedMotion()) map.jumpTo(camera);
     else map.easeTo(camera);

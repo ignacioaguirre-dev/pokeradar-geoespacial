@@ -111,9 +111,16 @@ export function runSweep(map: MapLibreMap, options: Options): () => void {
   };
 
   let markers: ReturnType<typeof addMarkers> = [];
+  // A wheel, drag or pinch during the sweep hands the camera to the person: the closing-in move would undo it.
+  // Only gestures carry the DOM event; the sweep's own camera moves do not
+  let taken = false;
+  const onMoveStart = (event: { originalEvent?: unknown }) => {
+    if (event.originalEvent) taken = true;
+  };
+  map.on("movestart", onMoveStart);
   const land = () => {
     markers = addMarkers(map, creatures, options);
-    frameCreatures(map, creatures, padding, durationMs);
+    if (!taken) frameCreatures(map, creatures, padding, durationMs);
   };
 
   const [west, south, east, north] = bbox(fence.ring);
@@ -130,7 +137,10 @@ export function runSweep(map: MapLibreMap, options: Options): () => void {
   if (!animate) {
     paint(sweepFrame(0, 0, ease));
     land();
-    return () => markers.forEach((marker) => marker.remove());
+    return () => {
+      map.off("movestart", onMoveStart);
+      markers.forEach((marker) => marker.remove());
+    };
   }
 
   // Hidden until the camera arrives: the event reads only once the fence is in view
@@ -164,6 +174,7 @@ export function runSweep(map: MapLibreMap, options: Options): () => void {
     cancelled = true;
     clearTimeout(grace);
     map.off("moveend", begin);
+    map.off("movestart", onMoveStart);
     if (frame) cancelAnimationFrame(frame);
     markers.forEach((marker) => marker.remove());
   };

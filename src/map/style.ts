@@ -1,9 +1,10 @@
-import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, ProjectionSpecification, StyleSpecification } from "maplibre-gl";
 import { BIOME_OPACITY } from "@/domain/color/biome";
 import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { MapColors } from "./colors";
 import type { CompactSighting } from "@/domain/sightings/compact";
 import type { HabitatCollection } from "./habitats";
+import { MIN_ZOOM } from "./argentina";
 import {
   SIGHTING_MIN_ZOOM,
   SIGHTING_OPACITY,
@@ -43,6 +44,8 @@ export function buildStyle(
   colors: MapColors,
   habitats: HabitatCollection,
   sightings: readonly CompactSighting[] = [],
+  // Only the entry flight passes one; without it the map is plain mercator
+  projection?: ProjectionSpecification,
 ): StyleSpecification {
   const habitatPaint = { "fill-color": habitatColor(colors), "fill-opacity": BIOME_OPACITY };
   return {
@@ -55,6 +58,14 @@ export function buildStyle(
       ...sweepSources(),
     },
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+    ...(projection ? { projection } : {}),
+    // The default sky is light blue with a white horizon: whatever sky the globe exposes stays space-dark
+    sky: {
+      "sky-color": colors.space,
+      "horizon-color": colors.space,
+      // Its halo's color is fixed in MapLibre's shader; the flight draws the globe's edge as a line instead
+      "atmosphere-blend": 0,
+    },
     layers: [
       {
         id: "background",
@@ -89,6 +100,8 @@ export function buildStyle(
         type: "line",
         source: SOURCE,
         "source-layer": "water",
+        // The water polygons end on the antimeridian, a line across the opening globe; at rest the zoom never goes lower
+        minzoom: MIN_ZOOM,
         paint: { "line-color": colors.coast, "line-width": 1 },
       },
       {

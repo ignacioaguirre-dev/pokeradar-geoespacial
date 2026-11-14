@@ -55,6 +55,17 @@ test("a shared link opens the creature's detail @critical", async ({ page }) => 
   await expectNoA11yViolations(page);
 });
 
+test("a shared link lands on the creature without the entry flight", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/?creature=25");
+  await waitForReading(page);
+  await expect(page.getByRole("region", { name: messages.Map.region })).toHaveAttribute("aria-busy", "false", {
+    timeout: 30_000,
+  });
+  await expect(page.getByRole("button", { name: messages.Map.skipIntroLabel })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: messages.Map.zoomIn })).toBeEnabled();
+});
+
 test("an upstream failure shows the error and retry asks again", async ({ page }) => {
   await page.goto("/?creature=26");
   const alert = detailAlert(page);

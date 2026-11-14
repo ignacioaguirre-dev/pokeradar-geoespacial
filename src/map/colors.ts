@@ -11,6 +11,7 @@ export type MapColors = {
   sighting: string;
   sweep: string;
   trace: string;
+  space: string;
   biome: Record<AreaHabitat, string>;
 };
 
@@ -31,6 +32,7 @@ export function readMapColors(): MapColors {
     sweep: token("sweep"),
     // The ochre of a creature present by its habitat: every trace of a preset fence is one
     trace: token("habitat"),
+    space: token("map-space"),
     biome: {
       forest: token("biome-forest"),
       grassland: token("biome-grassland"),
