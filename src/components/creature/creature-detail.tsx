@@ -1,8 +1,7 @@
 "use client";
 
-import { animate } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type Ref } from "react";
+import { useEffect, useId, useRef, useSyncExternalStore, type Ref } from "react";
 import { Button } from "@/components/ui/button";
 import { EnergyBar } from "@/components/ui/energy-bar";
 import { Notice } from "@/components/ui/notice";
@@ -10,7 +9,6 @@ import { Quantity } from "@/components/ui/quantity";
 import { Tag } from "@/components/ui/tag";
 import type { CreatureDetail as Detail } from "@/features/catalog/types";
 import type { CreatureError } from "@/features/creature/use-creature";
-import { useDurationToken } from "@/hooks/use-duration-token";
 
 type Props = {
   state: "loading" | "error" | "ready";
@@ -24,8 +22,6 @@ type Props = {
 // Base stats top out at 255 across every species
 const STAT_MAX = 255;
 const STATS = ["hp", "attack", "defense", "specialAttack", "specialDefense", "speed"] as const;
-// --curve-out from globals.css, as motion takes it
-const CURVE_OUT = [0.16, 1, 0.3, 1] as const;
 
 const SKELETON = "rounded-control bg-structure motion-safe:animate-pulse";
 const LINK =
@@ -38,25 +34,12 @@ function canPlayOgg(): boolean {
   return document.createElement("audio").canPlayType("audio/ogg") !== "";
 }
 
-// The value climbs from 0 so the bar grows in; with reduced motion the token is 0 and it lands at once
-function GrowingEnergyBar({ label, value }: { label: string; value: number }) {
-  const durationMs = useDurationToken("--duration-medium");
-  const [shown, setShown] = useState(durationMs === 0 ? value : 0);
-  useEffect(() => {
-    const controls = animate(0, value, {
-      duration: durationMs / 1000,
-      ease: CURVE_OUT,
-      onUpdate: (v) => setShown(Math.round(v)),
-    });
-    return () => controls.stop();
-  }, [value, durationMs]);
-  return <EnergyBar label={label} value={shown} max={STAT_MAX} />;
-}
-
 function CryButton({ src }: { src: string }) {
   const t = useTranslations("Creature");
   const supported = useSyncExternalStore(noSubscription, canPlayOgg, () => false);
   const audio = useRef<HTMLAudioElement | null>(null);
+  // Closing the panel (or moving to another creature) silences it
+  useEffect(() => () => audio.current?.pause(), []);
   if (!supported) return null;
   return (
     <Button
@@ -205,7 +188,7 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
               {STATS.map((stat) => (
                 <li key={stat}>
                   {ready ? (
-                    <GrowingEnergyBar label={tStats(stat)} value={data.stats[stat]} />
+                    <EnergyBar label={tStats(stat)} value={data.stats[stat]} max={STAT_MAX} grow />
                   ) : (
                     // Same rows as EnergyBar: a label line and the 0.5 rem bar
                     <div aria-hidden="true" className="flex flex-col gap-1 text-label">

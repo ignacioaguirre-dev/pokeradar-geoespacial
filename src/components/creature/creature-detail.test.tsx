@@ -18,9 +18,11 @@ const PIKACHU: Detail = {
 
 const noop = () => {};
 const played: string[] = [];
+const paused: string[] = [];
 
 beforeEach(() => {
   played.length = 0;
+  paused.length = 0;
   // jsdom has no media playback: Audio records what it was asked to play
   vi.stubGlobal(
     "Audio",
@@ -29,6 +31,9 @@ beforeEach(() => {
       play() {
         played.push(this.src);
         return Promise.resolve();
+      }
+      pause() {
+        paused.push(this.src);
       }
     },
   );
@@ -41,6 +46,28 @@ afterEach(() => {
 });
 
 describe("CreatureDetail", () => {
+  it("gives every meter its final value from the first render, even while the bars grow in", () => {
+    // A real token: the bars animate, yet the accessible reading must never start at 0
+    const real = window.getComputedStyle;
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      const style = real(element, pseudo);
+      const read = style.getPropertyValue.bind(style);
+      style.getPropertyValue = (name: string) => (name === "--duration-medium" ? "240ms" : read(name));
+      return style;
+    });
+    render(<CreatureDetail state="ready" data={PIKACHU} onRetry={noop} onClose={noop} />);
+    expect(screen.getByRole("meter", { name: "Velocidad" })).toHaveAttribute("value", "90");
+    expect(screen.getByRole("meter", { name: "PS" })).toHaveAttribute("value", "35");
+  });
+
+  it("stops the cry when the detail goes away", async () => {
+    const { unmount } = render(<CreatureDetail state="ready" data={PIKACHU} onRetry={noop} onClose={noop} />);
+    await userEvent.click(screen.getByRole("button", { name: "Escuchar grito" }));
+    expect(played).toEqual([PIKACHU.cry]);
+    unmount();
+    expect(paused).toEqual([PIKACHU.cry]);
+  });
+
   it("shows the creature's real data", async () => {
     render(<CreatureDetail state="ready" data={PIKACHU} onRetry={noop} onClose={noop} />);
     expect(screen.getByRole("heading", { name: "Pikachu" })).toBeVisible();

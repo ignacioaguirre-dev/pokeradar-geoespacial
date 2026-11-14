@@ -18,7 +18,9 @@ function subscribe(onChange: () => void) {
   return () => query?.removeEventListener("change", onChange);
 }
 
-// Milliseconds of a --duration-* token, so script-driven motion follows the same tokens as CSS
+// Milliseconds of a --duration-* token, so script-driven motion follows the same tokens as CSS.
+// Only for client subtrees (the server snapshot is 0); it reads the token once and again only when the
+// reduced-motion preference changes, so a token changed at runtime is not picked up
 export function useDurationToken(name: `--duration-${string}`): number {
   return useSyncExternalStore(
     subscribe,
