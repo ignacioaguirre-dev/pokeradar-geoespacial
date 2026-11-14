@@ -8,6 +8,8 @@ type Props = {
   title: string;
   children?: ReactNode;
   action?: { label: string; onActivate: () => void };
+  // False inside a live region that already exists: a role on a node inserted later may go unannounced
+  live?: boolean;
 };
 
 const VARIANTS = {
@@ -16,11 +18,11 @@ const VARIANTS = {
   error: { mark: "!", border: "border-alert", color: "text-alert" },
 } as const;
 
-export function Notice({ variant, title, children, action }: Props) {
+export function Notice({ variant, title, children, action, live = true }: Props) {
   const { mark, border, color } = VARIANTS[variant];
   return (
     <div
-      role={variant === "error" ? "alert" : "status"}
+      role={live ? (variant === "error" ? "alert" : "status") : undefined}
       className={`flex items-start gap-3 rounded-panel border bg-surface p-3 text-foreground ${border}`}
     >
       <span aria-hidden="true" className={`font-mono text-subtitle font-bold ${color}`}>
