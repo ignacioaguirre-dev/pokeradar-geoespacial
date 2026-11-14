@@ -10,15 +10,17 @@ const ATTRIBUTION_LINK =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
 
 export default async function Home() {
+  // Started first so it overlaps the translations. Not awaited: a failed catalog is cached only briefly,
+  // so awaiting it here would make the build depend on PokéAPI. Handed over as a promise, the route stays
+  // prerendered and the dots stream in. On failure the layer stays empty; the data notice arrives with the sweep
+  const sightings = loadSightings().then((loaded) => (loaded.ok ? toCompact(loaded.data) : []));
   // MapLibre fetches the TileJSON with CORS, so only an anonymous connection gets reused
   preconnect("https://tiles.openfreemap.org", { crossOrigin: "anonymous" });
-  const t = await getTranslations("Home");
-  const tMap = await getTranslations("Map");
-  const messages = await getMessages();
-  // Not awaited: a failed catalog is cached only briefly, so awaiting it here would make the build depend
-  // on PokéAPI. Handed over as a promise, the route stays prerendered and the dots stream in.
-  // On failure the layer stays empty; the data notice arrives with the sweep
-  const sightings = loadSightings().then((loaded) => (loaded.ok ? toCompact(loaded.data) : []));
+  const [t, tMap, messages] = await Promise.all([
+    getTranslations("Home"),
+    getTranslations("Map"),
+    getMessages(),
+  ]);
   return (
     // Bottom column: MapStage's notice and controls stack above the attribution; the map fills it absolutely
     <div className="relative flex h-dvh flex-col justify-end gap-2 overflow-hidden bg-map-sea pb-[env(safe-area-inset-bottom)]">
@@ -32,6 +34,7 @@ export default async function Home() {
       <main className="pointer-events-none flex flex-col items-end gap-2 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
         {/* A nested provider replaces the messages, so every namespace the island reads goes here */}
         <NextIntlClientProvider messages={{ Map: messages.Map, Button: messages.Button, Habitats: messages.Habitats }}>
+          {/* loadSightings never rejects by design (failure is a value): no silent catch needed here */}
           <MapStage sightings={sightings} />
         </NextIntlClientProvider>
       </main>
