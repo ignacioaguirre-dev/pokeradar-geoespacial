@@ -57,9 +57,8 @@ const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 352 };
 const FENCE_PADDING_NARROW = { ...PADDING_NARROW, bottom: PADDING_NARROW.bottom + 52 };
 // The detail: a 360 px panel at 12 from the right edge on desktop
 const DETAIL_RIGHT = 396;
-// On phones a sheet up to 60 % tall, resting on the folded attribution (44) 8 apart, so it stays in reach
+// On phones a sheet up to 60 % tall, from the bottom edge
 const SHEET_SHARE = 0.6;
-const SHEET_BOTTOM = 52;
 // The sheet stops this far from the top, however short the screen
 const MAP_ABOVE_SHEET = 160;
 
@@ -72,7 +71,7 @@ function detailPadding(wide: boolean) {
     // Narrow desktops: the creature may sit under the sweep panel rather than vanish between the two
     return { ...PADDING_WIDE, right: DETAIL_RIGHT, left: roomy ? PADDING_WIDE.left : PADDING_NARROW.left };
   }
-  const sheet = Math.round(window.innerHeight * SHEET_SHARE) + SHEET_BOTTOM;
+  const sheet = Math.round(window.innerHeight * SHEET_SHARE);
   return { ...PADDING_NARROW, bottom: Math.min(sheet, window.innerHeight - MAP_ABOVE_SHEET) };
 }
 
