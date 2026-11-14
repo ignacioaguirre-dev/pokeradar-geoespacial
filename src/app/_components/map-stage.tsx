@@ -446,8 +446,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
                 <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
               </div>
             ) : null}
-            {/* The help button keeps its visible label, which does not fit beside the map controls on a 360 px phone,
-                so it rides in the legend's row: both explain the map, the nav moves it */}
+            {/* The help rides in the legend's row: both explain the map, the nav moves it.
+                On phones it shows only the info mark */}
             <div className="flex gap-2">
               <HabitatLegend disabled={!interactive} />
               <MapHelpButton

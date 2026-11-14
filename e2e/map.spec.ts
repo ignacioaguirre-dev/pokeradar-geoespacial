@@ -570,7 +570,7 @@ test.describe("movement help", () => {
       await expect.poll(async () => (await boxOf(detail)).x).toBe(width < 768 ? 0 : width - 12 - 360);
       const intro = helpIntro(page);
       if (width < 768) {
-        // The bottom sheet covers the controls row, so the help waits until it closes
+        // The bottom sheet covers the sweep panel, where the help opens, so it waits until it closes
         await expect(intro).toHaveCount(0);
         await page.getByRole("button", { name: messages.Creature.close }).click();
         await expect(detail).toHaveCount(0);
@@ -583,7 +583,10 @@ test.describe("movement help", () => {
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);
       }
-      // The button keeps its label without crowding the map controls
+      // On phones the button is only its 44 px info mark; from md it keeps its label. Neither crowds the controls
+      const helpButton = await boxOf(page.getByRole("button", { name: help.title }));
+      if (width < 768) expect(helpButton.width).toBe(44);
+      else expect(helpButton.width).toBeGreaterThan(44);
       expect(
         overlaps(
           await boxOf(page.getByRole("button", { name: help.title })),

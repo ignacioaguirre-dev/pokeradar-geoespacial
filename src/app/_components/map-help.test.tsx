@@ -96,9 +96,11 @@ describe("MapHelpButton", () => {
   });
 
   // DESIGN.md: never an icon alone
-  it("shows its name as visible text", () => {
+  // Phones see only the info mark; its name is the same everywhere
+  it("is named after the help, not after its info mark", () => {
     render(<MapHelpButton lines={lines} />);
     expect(screen.getByRole("button", { name: "Cómo moverse" })).toHaveTextContent("Cómo moverse");
+    expect(screen.queryByRole("button", { name: /^i/ })).not.toBeInTheDocument();
   });
 
   // What the map detected changes during gestures; reading it on open keeps those gestures from re-rendering

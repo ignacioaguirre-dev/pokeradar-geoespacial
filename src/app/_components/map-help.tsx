@@ -111,9 +111,13 @@ export function MapHelpButton({ lines, disabled = false, panelClassName = "left-
           aria-controls={open ? panelId : undefined}
           disabled={disabled}
           onClick={() => setShown(open ? null : lines())}
-          className="px-4!"
+          className="px-0! md:px-4!"
         >
-          {t("title")}
+          {/* On phones only the info mark of the notices, so the row keeps room; the name stays for screen readers */}
+          <span aria-hidden="true" className="font-mono text-subtitle font-bold md:hidden">
+            i
+          </span>
+          <span className="max-md:sr-only">{t("title")}</span>
         </Button>
       </span>
       {/* After its button, so Tab goes from the button into the panel. It opens upward from the row's left edge,
