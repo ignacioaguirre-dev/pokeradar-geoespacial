@@ -28,6 +28,8 @@
   --color-biome-sea: #2e5e78; /* Argentine Sea off Península Valdés */
   /* Fence outline and sweep rings, map only: warmer than the text salt and paler than the trace ochre */
   --color-sweep: #e6d3b0; /* Salinas Grandes salt crust at dusk */
+  /* The flag on the Ver Argentina control, interface only */
+  --color-flag-sky: #74acdf; /* celeste of the Argentine flag */
 
   --radius-control: 2px;
   --radius-panel: 4px;

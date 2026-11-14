@@ -69,6 +69,22 @@ async function expectApart(parts: Record<string, Locator>): Promise<void> {
   }
 }
 
+// Measured where it rests, not mid-entrance; motion may cancel an animation it replaces, which rejects `finished`
+async function settled(locator: Locator): Promise<void> {
+  await locator.evaluate((el) =>
+    Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))),
+  );
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await locator.boundingBox());
+      const still = now === last;
+      last = now;
+      return still;
+    })
+    .toBe(true);
+}
+
 async function choose(page: Page, fence: string) {
   await page.getByRole("button", { name: fence, exact: true }).click();
   await expect(page.getByRole("button", { name: fence, exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -233,34 +249,45 @@ test.describe("with WebGL2", () => {
     await list(page, IBERA).first().click();
     const sheet = page.getByRole("region", { name: /./ }).filter({ has: page.getByRole("heading", { level: 2 }) });
     await expect(sheet).toBeVisible({ timeout: 15_000 });
-    const osm = page.getByRole("link", { name: "© OpenStreetMap" });
-    await expect(osm).toBeVisible();
-    const [sheetBox, osmBox] = [await sheet.boundingBox(), await osm.boundingBox()];
-    expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(osmBox!.y + 1);
+    // Folded behind one button on phones; still in reach under the sheet
+    const attribution = page.getByRole("contentinfo", { name: messages.Map.attribution });
+    await expect(attribution).toBeVisible();
+    await settled(sheet);
+    const [sheetBox, attributionBox] = [await sheet.boundingBox(), await attribution.boundingBox()];
+    expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(attributionBox!.y + 1);
   });
 
-  // The sweep panel, the movement help (intro and panel), the legend row and the map controls share the bottom of
-  // a phone and the left of a desktop; the detail sheet joins them once a creature opens
+  // Phones: the sweep panel across the bottom, the control column at the right, the folded attribution below, and the
+  // help beside the column or in a sheet. Desktop: the sweep panel at the left, the legend row and the controls at the
+  // bottom, the help above them. The detail joins them once a creature opens
   for (const [width, height] of [
     [360, 740],
     [390, 844],
+    [1024, 768],
     [1280, 720],
   ] as const) {
     test(`at ${width} px the sweep panel, the movement help, the controls and the detail never overlap`, async ({
       page,
     }) => {
+      const phone = width < 768;
       await page.setViewportSize({ width, height });
       await page.goto("/");
       await waitForMapReady(page);
       const panel = page.getByRole("group", { name: t.fences }).locator("..");
-      const controls = {
-        legend: page.getByRole("button", { name: messages.Map.legend }),
-        help: page.getByRole("button", { name: messages.MapHelp.title }),
-        nav: page.getByRole("navigation", { name: messages.Map.controls }),
-      };
+      const nav = page.getByRole("navigation", { name: messages.Map.controls });
+      const attribution = page.getByRole("contentinfo", { name: messages.Map.attribution });
+      // On phones the legend and the help are buttons of the column itself
+      const controls: Record<string, Locator> = phone
+        ? { nav, attribution }
+        : {
+            nav,
+            attribution,
+            legend: page.getByRole("button", { name: messages.Map.legend }),
+            help: page.getByRole("button", { name: messages.MapHelp.title }),
+          };
       const intro = page.getByRole("status").filter({ has: page.getByRole("button", { name: messages.MapHelp.dismiss }) });
 
-      // First visit: the intro opens above the sweep panel on phones, beside it on desktop
+      // First visit: the intro sits beside the column on phones, beside the sweep panel on desktop
       await expect(intro).toBeVisible();
       await expectApart({ panel, intro, ...controls });
 
@@ -270,25 +297,41 @@ test.describe("with WebGL2", () => {
       await expect(reading(page)).toHaveText(IBERA_READING);
       await expectApart({ panel, ...controls });
 
-      // The panel never covers the reading and never runs off the top, however tall the sweep panel got
-      await controls.help.click();
-      const helpPanel = page.getByRole("region", { name: messages.MapHelp.title });
+      // A sheet over everything on phones; on desktop a panel that never covers the reading or runs off the top
+      await page.getByRole("button", { name: messages.MapHelp.title }).click();
+      const helpPanel = page.getByRole(phone ? "dialog" : "region", { name: messages.MapHelp.title });
       await expect(helpPanel).toBeVisible();
-      await expectApart({ panel, helpPanel, ...controls });
+      if (phone) {
+        await expect.poll(async () => {
+          const box = (await helpPanel.boundingBox())!;
+          return box.y + box.height;
+        }).toBeLessThanOrEqual(height);
+      } else {
+        await expectApart({ panel, helpPanel, ...controls });
+      }
       expect((await helpPanel.boundingBox())!.y).toBeGreaterThanOrEqual(0);
       await page.keyboard.press("Escape");
       await expect(helpPanel).toBeHidden();
 
-      // On phones the sheet covers the sweep panel but rests on the controls; on desktop it floats at the right
-      await list(page, IBERA).first().click();
-      const sheet = page.getByRole("region", { name: /./ }).filter({ has: page.getByRole("heading", { level: 2 }) });
-      await expect(sheet).toBeVisible({ timeout: 15_000 });
-      // Measured where it rests, not mid-entrance
-      await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
-      await expectApart(width >= 768 ? { panel, sheet, ...controls } : { sheet, ...controls });
-      // A short phone still keeps some map above the sheet for the creature it is about
-      if (width < 768) expect((await sheet.boundingBox())!.y).toBeGreaterThanOrEqual(159);
-      await expectApart({ panel, ...controls });
+      // On phones the sheet covers the sweep panel and the column steps aside; on desktop it floats at the right
+      const first = list(page, IBERA).first();
+      const name = (await first.getAttribute("aria-label"))!.replace(VIEW, "");
+      await first.click();
+      const sheet = page.getByRole("region", { name, exact: true });
+      await expect(sheet.getByRole("heading", { level: 2, name })).toBeVisible({ timeout: 15_000 });
+      await settled(sheet);
+      if (phone) {
+        await expect(nav).toHaveCount(0);
+        await expectApart({ sheet, attribution });
+        // A short phone still keeps some map above the sheet for the creature it is about
+        expect((await sheet.boundingBox())!.y).toBeGreaterThanOrEqual(159);
+      } else {
+        await expectApart({ panel, sheet, ...controls });
+        // Reopened beside the detail, the help panel stays clear of it
+        await page.getByRole("button", { name: messages.MapHelp.title }).click();
+        await expect(helpPanel).toBeVisible();
+        await expectApart({ sheet, helpPanel, ...controls });
+      }
     });
   }
 

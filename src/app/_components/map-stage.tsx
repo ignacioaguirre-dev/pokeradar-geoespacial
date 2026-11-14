@@ -23,9 +23,8 @@ import { useResolved } from "@/hooks/use-resolved";
 import type { MapHandle, MapInput, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
-import { HabitatLegend } from "./habitat-legend";
 import { introPlayed } from "./intro-played";
-import { introLines, MapHelpButton, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
+import { introLines, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
 
 // The notices come from MapStage, so the chunk shows nothing while it downloads.
 // HabitatMap carries the habitat data, so it rides in this deferred chunk instead of the initial JS
@@ -34,14 +33,24 @@ const BaseMap = dynamic(() => import("./habitat-map").then((m) => m.HabitatMap),
   loading: () => null,
 });
 
+// The controls wait for the map anyway, so each layout comes in its own chunk, into room already kept for it
+const ControlColumn = dynamic(() => import("./control-column").then((m) => m.ControlColumn), {
+  ssr: false,
+  loading: () => null,
+});
+const ControlRow = dynamic(() => import("./control-row").then((m) => m.ControlRow), {
+  ssr: false,
+  loading: () => null,
+});
+
 const SLOW_MS = 8_000;
 const TIMEOUT_MS = 30_000;
 
 // Module constants keep their identity, so BaseMap only reacts to a real change
-// Narrow bottom = legend row (44) + gap (8) + controls (44) + gap (8) + attribution wrapped to two lines (88) + margin,
-// so Tierra del Fuego stays clear
-// + the fence row (44 + 8) and its one-line reading (20 + 8)
-const PADDING_NARROW = { top: 64, right: 12, bottom: 284, left: 12 };
+// Narrow bottom = the folded attribution (44) + gap (8) + the sweep panel: its fence row (44), one-line reading (20),
+// their gap (12), padding and border (18) + margin, so Tierra del Fuego stays clear.
+// Right = the control column (44 at 12 from the edge) + a gap
+const PADDING_NARROW = { top: 64, right: 68, bottom: 160, left: 12 };
 // Left clears the sweep panel (320 wide at 12 from the edge)
 const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 352 };
 
@@ -49,10 +58,9 @@ const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 352 };
 const FENCE_PADDING_NARROW = { ...PADDING_NARROW, bottom: PADDING_NARROW.bottom + 52 };
 // The detail: a 360 px panel at 12 from the right edge on desktop
 const DETAIL_RIGHT = 396;
-// On phones a sheet up to 60 % tall, resting on the legend row and the controls (two rows of 44 apart by 8),
-// which rest on the attribution (two lines of 44), each 8 apart: the controls stay in reach while it is open
+// On phones a sheet up to 60 % tall, resting on the folded attribution (44) 8 apart, so it stays in reach
 const SHEET_SHARE = 0.6;
-const SHEET_BOTTOM = 200;
+const SHEET_BOTTOM = 52;
 // The sheet stops this far from the top, however short the screen
 const MAP_ABOVE_SHEET = 160;
 
@@ -107,19 +115,9 @@ const HELP_LEFT = "left-0 md:left-[20.5rem]";
 const INTRO_WIDE = "md:w-max md:max-w-[max(24rem,calc(100vw-45rem))]";
 
 const WIDE_QUERY = "(min-width: 768px)";
+// Wide enough for the help beside the sweep panel (20.5rem + 24rem) and the detail (360 px at 12) to fit side by side
+const ROOMY_QUERY = "(min-width: 1120px)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-
-const ICON_PLUS = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M10 4v12M4 10h12" />
-  </svg>
-);
-
-const ICON_MINUS = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4 10h12" />
-  </svg>
-);
 
 function subscribeNothing() {
   return () => {};
@@ -130,16 +128,27 @@ function useWebGL2Support(): boolean | null {
   return useSyncExternalStore(subscribeNothing, supportsWebGL2, () => null);
 }
 
-function subscribeWide(onChange: () => void) {
-  const query = window.matchMedia(WIDE_QUERY);
+function subscribeMedia(media: string, onChange: () => void) {
+  const query = window.matchMedia(media);
   query.addEventListener("change", onChange);
   return () => query.removeEventListener("change", onChange);
 }
+
+const subscribeWide = (onChange: () => void) => subscribeMedia(WIDE_QUERY, onChange);
+const subscribeRoomy = (onChange: () => void) => subscribeMedia(ROOMY_QUERY, onChange);
 
 function useWideViewport(): boolean {
   return useSyncExternalStore(
     subscribeWide,
     () => window.matchMedia(WIDE_QUERY).matches,
+    () => false,
+  );
+}
+
+function useRoomyViewport(): boolean {
+  return useSyncExternalStore(
+    subscribeRoomy,
+    () => window.matchMedia(ROOMY_QUERY).matches,
     () => false,
   );
 }
@@ -188,6 +197,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const tSweep = useTranslations("Sweep");
   const supported = useWebGL2Support();
   const wide = useWideViewport();
+  const roomy = useRoomyViewport();
   const online = useOnline();
   const pointer = usePointerKind();
   const helpSeen = useHelpSeen();
@@ -195,6 +205,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const detectedRef = useRef<MapInput | null>(null);
   const mapRef = useRef<MapHandle>(null);
   const helpRef = useRef<MapHelpButtonHandle>(null);
+  const columnRef = useRef<HTMLElement>(null);
   const regionRef = useRef<HTMLElement>(null);
   const sweepPanelRef = useRef<HTMLDivElement>(null);
   const { fence, detection, choose } = useFenceSweep(FENCES, payload);
@@ -233,7 +244,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const waiting = phase === "loading" || phase === "slow";
 
   useEffect(() => {
-    if (phase === "ready") return whenIdle(preloadCreaturePanel);
+    if (phase !== "ready") return;
+    return whenIdle(preloadCreaturePanel);
   }, [phase]);
 
   // Marked as soon as the flight can start: a remount (leaving the page and coming back) lands directly
@@ -281,10 +293,12 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const flying = mounted && flies && !introDone && (visible === "loading" || visible === "slow" || ready);
   // The map is ready while it flies, but its controls wait for the final frame
   const interactive = ready && !flying;
-  // On a phone the detail is a bottom sheet over the sweep panel, right where the help opens, so it waits until it closes.
+  // On a phone the detail is a bottom sheet: the control column steps aside until it closes, and the help with it.
+  // On a narrow desktop the help beside the sweep panel would run under the detail, so it waits too.
   // It also waits for the flight: it explains how to move a map the person cannot move yet
   const sheetOver = focus !== null && !wide;
-  const showHelp = interactive && pointer !== null && !helpSeen && !sheetOver;
+  const helpCovered = focus !== null && !roomy;
+  const showHelp = interactive && pointer !== null && !helpSeen && !helpCovered;
 
   // Remembered even when storage fails: then it only lasts until the page reloads
   function dismissHelp() {
@@ -300,7 +314,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
 
   function handleCreatureChange(id: number | null) {
     setFocus(id);
-    if (id !== null && !wide) helpRef.current?.close();
+    if (id !== null && !roomy) helpRef.current?.close();
   }
 
   function handleInputDetected(input: MapInput) {
@@ -310,7 +324,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   function acknowledgeHelp() {
     dismissHelp();
     // The focused Entendido unmounts; the help button is where this help lives from now on
-    helpRef.current?.focus();
+    if (wide) helpRef.current?.focus();
+    else columnRef.current?.querySelector<HTMLButtonElement>("[aria-haspopup]")?.focus();
   }
 
   function endIntro() {
@@ -406,10 +421,9 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
         ) : null}
       </section>
       {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
-      {/* On phones the movement help opens above this whole stack, so it never covers the fences or the reading.
-          From md it is no box at all: the sweep panel floats and the controls row anchors the help */}
+      {/* From md it is no box at all: the sweep panel floats and the controls row anchors the help */}
       <div className="relative flex w-full flex-col gap-2 md:contents">
-        {/* Above the controls on phones; a floating panel at the left on desktop. Usable without the map:
+        {/* Across the bottom on phones; a floating panel at the left on desktop. Usable without the map:
             the list opens the detail even where WebGL is missing. Fences first, then what they found:
             seen in the order the keyboard reaches them. Choosing a fence is a first interaction too: the
             intro would otherwise sit over the creatures it brings */}
@@ -433,56 +447,59 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
             onRetry={() => window.location.reload()}
           />
         </div>
-        {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
+        {/* The row's room is kept from the server on, so its controls land without shifting the column; gone once the
+            map can never load. Using any control counts as the first interaction, so it also closes the intro */}
         {supported === false ? null : (
-          // Legend and help left, controls right: the same order on screen and for the keyboard.
-          // On phones they do not fit side by side: the legend keeps the first line and the controls wrap below
-          // Using any control counts as the first interaction, so it also closes the intro
-          <div className="flex w-full flex-wrap items-end justify-between gap-2 md:relative" onClickCapture={dismissHelp}>
+          <div
+            className="flex w-full items-end justify-between gap-2 max-md:hidden md:relative md:min-h-11"
+            onClickCapture={dismissHelp}
+          >
             {/* Floats above the controls instead of joining the column, which would grow upward as a layout shift */}
-            {showHelp ? (
-              // Left, by the help button: on desktop the right side belongs to the creature detail
+            {showHelp && wide ? (
+              // Left, by the help button: the right side belongs to the creature detail
               <div className={`pointer-events-auto absolute bottom-full mb-2 w-full max-w-sm ${HELP_LEFT} ${INTRO_WIDE}`}>
                 <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
               </div>
             ) : null}
-            {/* The help rides in the legend's row: both explain the map, the nav moves it.
-                On phones it shows only the info mark */}
-            <div className="flex gap-2">
-              <HabitatLegend disabled={!interactive} />
-              <MapHelpButton
-                ref={helpRef}
-                panelClassName={HELP_LEFT}
-                lines={() => panelLines(pointer, detectedRef.current)}
+            {wide ? (
+              <ControlRow
+                helpRef={helpRef}
                 disabled={!interactive}
+                onZoomIn={() => mapRef.current?.zoomIn()}
+                onZoomOut={() => mapRef.current?.zoomOut()}
+                onReset={() => mapRef.current?.resetView()}
+                helpLines={() => panelLines(pointer, detectedRef.current)}
+                // Reopened beside a detail that leaves no room, it rises over the sweep panel instead
+                helpPanelClassName={helpCovered ? "left-0" : HELP_LEFT}
               />
-            </div>
-            <nav aria-label={t("controls")} className="pointer-events-auto relative ml-auto flex shrink-0 gap-2">
-            <Button
-              variant="secondary"
-              aria-label={t("zoomIn")}
-              disabled={!interactive}
-              onClick={() => mapRef.current?.zoomIn()}
-              className="px-0!"
-            >
-              {ICON_PLUS}
-            </Button>
-            <Button
-              variant="secondary"
-              aria-label={t("zoomOut")}
-              disabled={!interactive}
-              onClick={() => mapRef.current?.zoomOut()}
-              className="px-0!"
-            >
-              {ICON_MINUS}
-            </Button>
-            <Button variant="secondary" disabled={!interactive} onClick={() => mapRef.current?.resetView()}>
-              {t("reset")}
-            </Button>
-            </nav>
+            ) : null}
           </div>
         )}
       </div>
+      {/* Phones: the free map above the sweep panel, with the control column centred at its right edge.
+          After the panel in the DOM, so the keyboard reaches the fences and the reading first; first on screen */}
+      {supported === false ? null : (
+        // Any of its buttons counts as the first interaction, so it also closes the intro
+        <div
+          className="order-first flex min-h-0 w-full flex-1 items-center justify-end pt-16 md:hidden"
+          onClickCapture={dismissHelp}
+        >
+          {/* Out of the way while the detail sheet is up; the map itself still pinches and drags */}
+          {wide || sheetOver ? null : (
+            <ControlColumn
+              ref={columnRef}
+              disabled={!interactive}
+              onZoomIn={() => mapRef.current?.zoomIn()}
+              onZoomOut={() => mapRef.current?.zoomOut()}
+              onReset={() => mapRef.current?.resetView()}
+              helpLines={() => panelLines(pointer, detectedRef.current)}
+              intro={
+                showHelp ? <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} stacked /> : null
+              }
+            />
+          )}
+        </div>
+      )}
       {/* Its own boundary: reading the URL must not keep the map and its controls out of the prerender.
           Independent of the map's phase, so the detail shows even when the map cannot load */}
       <Suspense fallback={null}>

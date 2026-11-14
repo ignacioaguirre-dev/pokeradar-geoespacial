@@ -11,6 +11,33 @@ const ATTRIBUTION_LINK =
   "inline-flex min-h-11 items-center rounded-control underline-offset-2 hover:text-foreground hover:underline " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
 
+// The map's sources; ecoregions are CC BY 4.0, which asks for the source and the license
+function Credits({ data, separated = false }: { data: string; separated?: boolean }) {
+  const dot = separated ? <span aria-hidden="true">·</span> : null;
+  return (
+    <>
+      <a href="https://openfreemap.org" className={ATTRIBUTION_LINK}>
+        © OpenFreeMap
+      </a>
+      {dot}
+      <a href="https://openmaptiles.org" className={ATTRIBUTION_LINK}>
+        © OpenMapTiles
+      </a>
+      {dot}
+      <span className="inline-flex items-center gap-x-1">
+        {data}
+        <a href="https://www.openstreetmap.org/copyright" className={ATTRIBUTION_LINK}>
+          © OpenStreetMap
+        </a>
+      </span>
+      {dot}
+      <a href="https://ecoregions.appspot.com" className={ATTRIBUTION_LINK}>
+        © RESOLVE (CC BY 4.0)
+      </a>
+    </>
+  );
+}
+
 export default async function Home() {
   // Started first so it overlaps the translations. Not awaited: a failed catalog is cached only briefly,
   // so awaiting it here would make the build depend on PokéAPI. Handed over as a promise, the route stays
@@ -29,8 +56,9 @@ export default async function Home() {
     getMessages(),
   ]);
   return (
-    // Bottom column: MapStage's notice and controls stack above the attribution; the map fills it absolutely
-    <div className="relative flex h-dvh flex-col justify-end gap-2 overflow-hidden bg-map-sea pb-[env(safe-area-inset-bottom)]">
+    // Bottom column: MapStage's notice and controls stack above the attribution; the map fills it absolutely.
+    // Clipped rather than hidden: a hidden box can still be scrolled from code (a focus), sliding the whole map aside
+    <div className="relative flex h-dvh flex-col justify-end gap-2 overflow-clip bg-map-sea pb-[env(safe-area-inset-bottom)]">
       {/* Lets drags reach the map under the brand */}
       <header className="pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-10">
         <h1 className="font-display font-stretch-condensed text-title font-bold uppercase tracking-tight md:text-headline">
@@ -38,7 +66,7 @@ export default async function Home() {
         </h1>
       </header>
       {/* Clicks fall through the empty column to the map; MapStage re-enables them on its parts */}
-      <main className="pointer-events-none flex flex-col items-end gap-2 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
+      <main className="pointer-events-none flex min-h-0 flex-1 flex-col items-end justify-end gap-2 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
         {/* A nested provider replaces the messages, so every namespace the island reads goes here */}
         <NextIntlClientProvider
           messages={{
@@ -59,26 +87,20 @@ export default async function Home() {
       </main>
       <footer
         aria-label={tMap("attribution")}
-        className="relative mr-[max(0.75rem,env(safe-area-inset-right))] ml-[max(0.75rem,env(safe-area-inset-left))] self-end rounded-t-panel bg-background/80 px-2 text-label text-muted"
+        className="relative mr-[max(0.75rem,env(safe-area-inset-right))] ml-[max(0.75rem,env(safe-area-inset-left))] self-end rounded-t-panel text-label text-muted md:bg-background/80 md:px-2"
       >
-        <p className="flex flex-wrap items-center justify-end gap-x-1">
-          <a href="https://openfreemap.org" className={ATTRIBUTION_LINK}>
-            © OpenFreeMap
-          </a>
-          <span aria-hidden="true">·</span>
-          <a href="https://openmaptiles.org" className={ATTRIBUTION_LINK}>
-            © OpenMapTiles
-          </a>
-          <span aria-hidden="true">·</span>
-          {tMap("attributionData")}
-          <a href="https://www.openstreetmap.org/copyright" className={ATTRIBUTION_LINK}>
-            © OpenStreetMap
-          </a>
-          <span aria-hidden="true">·</span>
-          {/* Ecoregions; CC BY 4.0 asks for the source and the license */}
-          <a href="https://ecoregions.appspot.com" className={ATTRIBUTION_LINK}>
-            © RESOLVE (CC BY 4.0)
-          </a>
+        {/* Phones fold it behind one button, like MapLibre's compact attribution, so it costs one line of map */}
+        <details className="group md:hidden">
+          <summary className="ml-auto flex size-11 cursor-pointer list-none items-center justify-center rounded-control border border-control bg-surface font-mono text-subtitle text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground group-open:border-foreground [&::-webkit-details-marker]:hidden">
+            <span aria-hidden="true">©</span>
+            <span className="sr-only">{tMap("attribution")}</span>
+          </summary>
+          <p className="absolute right-0 bottom-full mb-2 flex w-max max-w-[calc(100vw-1.5rem)] flex-col items-end rounded-panel border border-structure bg-surface px-3 py-1">
+            <Credits data={tMap("attributionData")} />
+          </p>
+        </details>
+        <p className="flex flex-wrap items-center justify-end gap-x-1 max-md:hidden">
+          <Credits data={tMap("attributionData")} separated />
         </p>
       </footer>
     </div>

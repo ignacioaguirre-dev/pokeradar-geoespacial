@@ -30,6 +30,7 @@ export const COLOR_USAGE = {
   "biome-sea": { kind: "decorative", minimum: null },
   // A graphic on the map: tooling/tokens.test.ts also checks it over the land, the sea and every biome
   sweep: { kind: "graphic", minimum: 3 },
+  "flag-sky": { kind: "graphic", minimum: 3 },
 } as const satisfies Record<string, ColorUsage>;
 
 export type ColorToken = keyof typeof COLOR_USAGE;

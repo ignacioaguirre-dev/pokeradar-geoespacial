@@ -126,7 +126,8 @@
         "biome-mountain": "Cerro de los Siete Colores",
         "biome-rough-terrain": "Arcillas de Ischigualasto",
         "biome-sea": "Mar Argentino frente a Península Valdés",
-        "sweep": "Costra de sal de Salinas Grandes al atardecer"
+        "sweep": "Costra de sal de Salinas Grandes al atardecer",
+        "flag-sky": "Celeste de la bandera argentina"
       },
       "usage": {
         "base": "Fondo base",

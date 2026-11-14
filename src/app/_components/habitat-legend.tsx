@@ -15,9 +15,26 @@ const PAINTED = [
   { habitat: "sea", ground: "bg-map-sea", fill: "bg-biome-sea" },
 ] as const;
 
-export function HabitatLegend({ disabled = false }: { disabled?: boolean }) {
+// The list itself, shared by the desktop popover and the phone sheet
+export function HabitatSwatches({ id, className = "" }: { id?: string; className?: string }) {
   const t = useTranslations("Map");
   const tHabitat = useTranslations("Habitats");
+  return (
+    <ul id={id} aria-label={t("legendList")} className={`flex flex-col gap-2 text-body ${className}`}>
+      {PAINTED.map(({ habitat, ground, fill }) => (
+        <li key={habitat} className="flex items-center gap-2">
+          <span aria-hidden="true" className={`size-4 shrink-0 rounded-control border border-control ${ground}`}>
+            <span className={`block size-full ${fill}`} style={{ opacity: BIOME_OPACITY }} />
+          </span>
+          {tHabitat(habitat)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function HabitatLegend({ disabled = false }: { disabled?: boolean }) {
+  const t = useTranslations("Map");
   const [open, setOpen] = useState(false);
   const listId = useId();
   // Reset while rendering, so the list does not pop open again by itself once re-enabled
@@ -34,20 +51,10 @@ export function HabitatLegend({ disabled = false }: { disabled?: boolean }) {
     <div className="pointer-events-auto relative" onKeyDown={handleKeyDown}>
       {expanded ? (
         // Opens upward so it never pushes the controls or covers the brand
-        <ul
+        <HabitatSwatches
           id={listId}
-          aria-label={t("legendList")}
-          className="absolute bottom-full left-0 mb-2 flex w-max flex-col gap-2 rounded-panel border border-structure bg-surface p-3 text-body"
-        >
-          {PAINTED.map(({ habitat, ground, fill }) => (
-            <li key={habitat} className="flex items-center gap-2">
-              <span aria-hidden="true" className={`size-4 shrink-0 rounded-control border border-control ${ground}`}>
-                <span className={`block size-full ${fill}`} style={{ opacity: BIOME_OPACITY }} />
-              </span>
-              {tHabitat(habitat)}
-            </li>
-          ))}
-        </ul>
+          className="absolute bottom-full left-0 mb-2 w-max rounded-panel border border-structure bg-surface p-3"
+        />
       ) : null}
       <Button
         variant="secondary"

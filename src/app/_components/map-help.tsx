@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 import { type KeyboardEvent, type Ref, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Mark } from "@/components/ui/mark";
 import { Notice } from "@/components/ui/notice";
 import type { PointerKind } from "@/hooks/use-pointer-kind";
 import type { MapInput } from "@/map/base-map";
@@ -25,7 +24,7 @@ export function panelLines(pointer: PointerKind | null, detected: MapInput | nul
   return detected ? [detected, ...base.filter((line) => line !== detected)] : base;
 }
 
-function Lines({ lines }: { lines: readonly HelpLine[] }) {
+export function HelpLines({ lines }: { lines: readonly HelpLine[] }) {
   const t = useTranslations("MapHelp");
   return (
     <ul className="flex flex-col gap-1">
@@ -36,11 +35,13 @@ function Lines({ lines }: { lines: readonly HelpLine[] }) {
   );
 }
 
-export function MapHelpIntro({ lines, onDismiss }: { lines: readonly HelpLine[]; onDismiss(): void }) {
+type MapHelpIntroProps = { lines: readonly HelpLine[]; onDismiss(): void; stacked?: boolean };
+
+export function MapHelpIntro({ lines, onDismiss, stacked = false }: MapHelpIntroProps) {
   const t = useTranslations("MapHelp");
   return (
-    <Notice variant="info" title={t("title")} action={{ label: t("dismiss"), onActivate: onDismiss }}>
-      <Lines lines={lines} />
+    <Notice variant="info" title={t("title")} action={{ label: t("dismiss"), onActivate: onDismiss }} stacked={stacked}>
+      <HelpLines lines={lines} />
     </Notice>
   );
 }
@@ -82,7 +83,7 @@ export function MapHelpButton({ lines, disabled = false, panelClassName = "left-
 
   useImperativeHandle(ref, () => ({ focus: focusTrigger, close: () => setShown(null) }), []);
 
-  // On a phone it opens above the whole sweep panel, which may leave less room than the lines need
+  // A short window may leave less room above the row than the lines need
   useLayoutEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
@@ -112,13 +113,9 @@ export function MapHelpButton({ lines, disabled = false, panelClassName = "left-
           aria-controls={open ? panelId : undefined}
           disabled={disabled}
           onClick={() => setShown(open ? null : lines())}
-          className="px-0! md:px-4!"
+          className="px-4!"
         >
-          {/* On phones only the info mark of the notices, so the row keeps room; the name stays for screen readers */}
-          <span className="md:hidden">
-            <Mark variant="info" />
-          </span>
-          <span className="max-md:sr-only">{t("title")}</span>
+          {t("title")}
         </Button>
       </span>
       {/* After its button, so Tab goes from the button into the panel. It opens upward from the row's left edge,
@@ -134,7 +131,7 @@ export function MapHelpButton({ lines, disabled = false, panelClassName = "left-
             {t("title")}
           </h2>
           <div className="text-muted">
-            <Lines lines={shown} />
+            <HelpLines lines={shown} />
           </div>
           <Button variant="secondary" onClick={close} className="self-end">
             {t("close")}
