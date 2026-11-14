@@ -2,6 +2,7 @@ import type { CompactSighting } from "@/domain/sightings/compact";
 
 // Faint on purpose: the layer hints where life is; the sweep (08) is what reveals it.
 // From zoom 5 only: over the whole country ~1 700 dots are noise
+export const SIGHTINGS_SOURCE = "sightings";
 export const SIGHTING_MIN_ZOOM = 5;
 export const SIGHTING_RADIUS = 2;
 export const SIGHTING_OPACITY = 0.5;

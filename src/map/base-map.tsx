@@ -1,13 +1,14 @@
 "use client";
 
 // Static on purpose: next/dynamic already defers this whole file, so import() here would chain a second download
-import { Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
+import { type GeoJSONSource, Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef } from "react";
 import { ARGENTINA_BOUNDS, MAX_BOUNDS, MIN_ZOOM } from "./argentina";
 import { readMapColors } from "./colors";
 import type { CompactSighting } from "@/domain/sightings/compact";
 import type { HabitatCollection } from "./habitats";
+import { SIGHTINGS_SOURCE, toSightingCollection } from "./sightings";
 import { buildStyle } from "./style";
 
 // Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
@@ -25,7 +26,7 @@ type Padding = { top: number; right: number; bottom: number; left: number };
 
 type BaseMapProps = {
   habitats: HabitatCollection;
-  // Fixed for the map's life; an empty list leaves the layer out
+  // May arrive after the map was created (streamed with the page); until then the layer is empty
   sightings?: readonly CompactSighting[];
   labels: { region: string; keyboardHelp: string };
   padding: Padding;
@@ -42,13 +43,15 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const helpId = useId();
+  // The sightings the map's source holds, so a re-render with the same list does not reload it
+  const appliedSightings = useRef<readonly CompactSighting[] | undefined>(undefined);
 
   const reportStatus = useEffectEvent((status: MapStatus) => onStatusChange(status));
 
   // Reads the props of the first render; later changes go through their own effects
-  const createMap = useEffectEvent(
-    (container: HTMLDivElement) =>
-      new MapLibreMap({
+  const createMap = useEffectEvent((container: HTMLDivElement) => {
+    appliedSightings.current = sightings;
+    return new MapLibreMap({
         container,
         style: buildStyle(readMapColors(), habitats, sightings),
         bounds: ARGENTINA_BOUNDS,
@@ -61,8 +64,17 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
         touchPitch: false,
         attributionControl: false,
         locale: { "Map.Title": labels.region },
-      }),
-  );
+    });
+  });
+
+  // Sources exist only once the style loaded; before that, the load handler calls this again
+  const syncSightings = useEffectEvent(() => {
+    if (sightings === appliedSightings.current) return;
+    const source = mapRef.current?.getSource<GeoJSONSource>(SIGHTINGS_SOURCE);
+    if (!source) return;
+    source.setData(toSightingCollection(sightings ?? []));
+    appliedSightings.current = sightings;
+  });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -91,6 +103,7 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
     map.on("load", () => {
       loaded = true;
       writeZoom();
+      syncSightings();
       if (!failed) reportStatus("ready");
     });
     // Only a style or source failure before load breaks the map; after load, or for a single tile
@@ -112,6 +125,8 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
       map.remove();
     };
   }, [helpId]);
+
+  useEffect(() => syncSightings(), [sightings]);
 
   const { top, right, bottom, left } = padding;
   useEffect(() => {

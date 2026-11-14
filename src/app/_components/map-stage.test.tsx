@@ -293,10 +293,20 @@ describe("MapStage", () => {
     );
   });
 
-  it("hands the sightings to the map", async () => {
-    render(<MapStage sightings={[[25, -58.4, -34.6]]} />);
+  it("hands the sightings to the map once they resolve", async () => {
+    render(<MapStage sightings={Promise.resolve([[25, -58.4, -34.6] as const])} />);
     await flush();
     expect(fake.sightings).toEqual([[25, -58.4, -34.6]]);
+  });
+
+  // Pending sightings (catalog slow or down) must not hold the map back
+  it("mounts the map while the sightings are still pending", async () => {
+    render(<MapStage sightings={new Promise(() => {})} />);
+    await flush();
+    expect(fake.mounts).toBe(1);
+    expect(fake.sightings).toBeUndefined();
+    report("ready");
+    expect(region()).toHaveAttribute("aria-busy", "false");
   });
 
   it("the habitat legend waits for the map", async () => {

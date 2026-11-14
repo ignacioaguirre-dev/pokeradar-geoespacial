@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { useResolved } from "@/hooks/use-resolved";
 import type { CompactSighting } from "@/domain/sightings/compact";
 import type { MapHandle, MapStatus } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
@@ -86,8 +87,9 @@ function failure(): Phase {
   return navigator.onLine === false ? "offline" : "error";
 }
 
-// Sightings arrive with the page payload (server-computed); empty when the catalog is down
-export function MapStage({ sightings }: { sightings?: readonly CompactSighting[] }) {
+// Sightings stream with the page; the map never waits for them (the catalog may be slow or down)
+export function MapStage({ sightings: pending }: { sightings?: Promise<readonly CompactSighting[]> }) {
+  const sightings = useResolved(pending);
   const t = useTranslations("Map");
   const supported = useWebGL2Support();
   const wide = useWideViewport();

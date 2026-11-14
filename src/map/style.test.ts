@@ -293,9 +293,9 @@ describe("sightings layer", () => {
     expect(index("sightings")).toBeLessThan(firstLabel);
   });
 
-  it("is left out when there are no sightings", () => {
-    const empty = buildStyle(COLORS, HABITATS, []);
-    expect(empty.sources.sightings).toBeUndefined();
-    expect(empty.layers.some((l) => l.id === "sightings")).toBe(false);
+  // The source is always there so sightings that stream in later only need setData
+  it("starts with an empty source when there are no sightings yet", () => {
+    const empty = buildStyle(COLORS, HABITATS);
+    expect(empty.sources.sightings).toEqual({ type: "geojson", data: { type: "FeatureCollection", features: [] } });
   });
 });
