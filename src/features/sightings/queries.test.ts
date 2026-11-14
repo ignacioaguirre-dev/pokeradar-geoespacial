@@ -4,7 +4,6 @@ import { FENCES } from "@/data/fences";
 import { SITES } from "@/data/sites";
 import { pointInPolygon } from "@/domain/geometry/point-in-polygon";
 import { detect } from "@/domain/sightings/detect";
-import { MAX_SITE_OFFSET } from "@/domain/sightings/distribute";
 import type { Sighting } from "@/domain/sightings/types";
 import habitatsFixture from "@/features/catalog/__fixtures__/habitats.json";
 import { loadCatalog } from "@/features/catalog/queries";
@@ -27,6 +26,9 @@ const CATALOG: Catalog = habitatsFixture
     })),
   )
   .sort((a, b) => a.id - b.id);
+
+// The requirement: a site point within 0.15° of its site, rounding included
+const SITE_REACH = 0.15;
 
 const habitatOf = new Map(CATALOG.map((s) => [s.id, s.habitat]));
 
@@ -56,7 +58,7 @@ describe("loadSightings", () => {
         (a) => a.habitat === habitat && a.polygons.some((polygon) => pointInPolygon(point, polygon)),
       );
       const nearSite = SITES.some(
-        (s) => s.habitat === habitat && Math.hypot(point[0] - s.point[0], point[1] - s.point[1]) <= MAX_SITE_OFFSET,
+        (s) => s.habitat === habitat && Math.hypot(point[0] - s.point[0], point[1] - s.point[1]) <= SITE_REACH,
       );
       expect(inArea || nearSite, `${speciesId} (${habitat}) at ${point}`).toBe(true);
     }

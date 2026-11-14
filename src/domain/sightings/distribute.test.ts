@@ -46,9 +46,12 @@ function inArea(point: LngLat, habitat: Habitat, areas: HabitatArea[]): boolean 
   return areas.some((a) => a.habitat === habitat && a.polygons.some((polygon) => pointInPolygon(point, polygon)));
 }
 
+// The requirement, not MAX_SITE_OFFSET: rounding can carry a point a little past the offset
+const SITE_REACH = 0.15;
+
 function nearSite(point: LngLat, habitat: Habitat, sites: Site[]): boolean {
   return sites.some(
-    (s) => s.habitat === habitat && Math.hypot(point[0] - s.point[0], point[1] - s.point[1]) <= MAX_SITE_OFFSET,
+    (s) => s.habitat === habitat && Math.hypot(point[0] - s.point[0], point[1] - s.point[1]) <= SITE_REACH,
   );
 }
 
@@ -103,7 +106,10 @@ describe("distribute", () => {
     for (const { speciesId, point } of sightings.filter((s) => s.speciesId !== 1 && s.speciesId !== 7)) {
       expect(nearSite(point, byHabitat.get(speciesId)!, SITES), `${speciesId} ${point}`).toBe(true);
     }
-    expect(MAX_SITE_OFFSET).toBeLessThanOrEqual(0.15);
+  });
+
+  test("the site offset leaves room for rounding within 0.15°", () => {
+    expect(MAX_SITE_OFFSET).toBeLessThanOrEqual(SITE_REACH);
   });
 
   test("rounds coordinates to three decimals", () => {
