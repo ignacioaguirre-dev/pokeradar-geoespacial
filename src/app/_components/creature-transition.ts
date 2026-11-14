@@ -17,9 +17,10 @@ export function isOpeningWithTransition(): boolean {
 function slotShown(): Promise<void> {
   return new Promise((resolve) => {
     const deadline = performance.now() + SLOT_WAIT_MS;
+    // A timer, not animation frames: those stop in a hidden tab and the page would wait on them
     const look = () => {
       if (document.querySelector(`[${SPRITE_SLOT}]`) || performance.now() > deadline) resolve();
-      else requestAnimationFrame(look);
+      else setTimeout(look, 16);
     };
     look();
   });
