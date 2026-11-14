@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { type KeyboardEvent, type Ref, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Mark } from "@/components/ui/mark";
 import { Notice } from "@/components/ui/notice";
 import type { PointerKind } from "@/hooks/use-pointer-kind";
 import type { MapInput } from "@/map/base-map";
@@ -114,8 +115,8 @@ export function MapHelpButton({ lines, disabled = false, panelClassName = "left-
           className="px-0! md:px-4!"
         >
           {/* On phones only the info mark of the notices, so the row keeps room; the name stays for screen readers */}
-          <span aria-hidden="true" className="font-mono text-subtitle font-bold md:hidden">
-            i
+          <span className="md:hidden">
+            <Mark variant="info" />
           </span>
           <span className="max-md:sr-only">{t("title")}</span>
         </Button>
