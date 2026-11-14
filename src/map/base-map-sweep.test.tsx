@@ -421,6 +421,16 @@ describe("BaseMap sweep", () => {
     expect(lastMap().flyTo.mock.calls[0][0].zoom).toBeGreaterThanOrEqual(7);
   });
 
+  // Left to MapLibre, a flight between creatures of the same fence lasts a frame or two: the map blinks
+  it("takes its time to reach a focused creature, however near it is", () => {
+    const { rerender } = renderMap(sweep());
+    emit("load");
+    rerender(sweep({ focus: 7 }));
+    const { duration, easing } = lastMap().flyTo.mock.calls[0][0];
+    expect(duration).toBe(600);
+    expect(easing(0.5)).toBeGreaterThan(0.5);
+  });
+
   it("with reduced motion jumps to the focused creature", () => {
     reduced = true;
     const { rerender } = renderMap(sweep());

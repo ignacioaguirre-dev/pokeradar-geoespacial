@@ -83,7 +83,7 @@ export function ControlColumn({ disabled, onZoomIn, onZoomOut, onReset, helpLine
 
   return (
     <>
-      <nav ref={ref} aria-label={t("controls")} className="pointer-events-auto flex flex-col gap-2">
+      <nav ref={ref} aria-label={t("controls")} className="controls-in pointer-events-auto flex flex-col gap-2 [--control-in-x:0.5rem] [--control-in-y:0]">
         <Button variant="secondary" aria-label={t("zoomIn")} disabled={disabled} onClick={onZoomIn} className="px-0!">
           {ICON_PLUS}
         </Button>
