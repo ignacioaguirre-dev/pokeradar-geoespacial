@@ -40,12 +40,13 @@ test.beforeEach(async ({ page }) => {
 test("losing the connection in use keeps the map and recovers the detail on its own", async ({ page, context }) => {
   await page.goto("/");
   await waitForMapReady(page);
-  // The panel's chunk downloads the first time a creature opens: one that does not exist brings it in
-  // without caching Pikachu, so the cut below still leaves that request without a network
-  await openCreature(page, 27);
-  await expect(page.getByText(messages.Creature.notFoundTitle)).toBeVisible({ timeout: 15_000 });
+  // The panel's chunk downloads the first time a creature opens: 26, which the fixture fails on purpose, brings it
+  // in without caching Pikachu, so the cut below still leaves that request without a network
+  await openCreature(page, 26);
+  const upstreamError = page.getByRole("alert").filter({ hasText: messages.Creature.errorBody });
+  await expect(upstreamError).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: messages.Creature.close }).click();
-  await expect(page.getByText(messages.Creature.notFoundTitle)).toHaveCount(0);
+  await expect(upstreamError).toHaveCount(0);
 
   await context.setOffline(true);
   await expect(offlineNotice(page)).toContainText(t.offlineTitle);
@@ -84,10 +85,9 @@ test("on a phone the notice clears the detail's sheet and the map controls", asy
 
   await context.setOffline(true);
   await expect(offlineNotice(page)).toBeVisible();
-  const notice = await boxOf(offlineNotice(page));
-  for (const other of [sheet, page.getByRole("navigation", { name: messages.Map.controls })]) {
-    expect(overlaps(notice, await boxOf(other))).toBe(false);
-  }
+  expect(overlaps(await boxOf(offlineNotice(page)), await boxOf(sheet))).toBe(false);
+  // The control column steps aside while the sheet is up, so there is nothing else to clear
+  await expect(page.getByRole("navigation", { name: messages.Map.controls })).toHaveCount(0);
   await context.setOffline(false);
 });
 
