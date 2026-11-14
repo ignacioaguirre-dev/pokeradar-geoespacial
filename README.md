@@ -40,7 +40,7 @@ La base oficial se genera en Linux, porque el render de fuentes cambia entre sis
 2. Revisar el diff de los PNG en `e2e/__screenshots__/linux/`.
 3. Commitear sólo esa carpeta, con commit firmado.
 
-Las capturas locales de Windows (`e2e/__screenshots__/win32/`) son personales y no se versionan. Playwright usa el puerto 3100, así que un `pnpm dev` en el 3000 no interfiere.
+Las capturas locales de Windows (`e2e/__screenshots__/win32/`) son personales y no se versionan. Playwright usa el puerto 3100, así que un `pnpm dev` en el 3000 no interfiere. Con varios worktrees corriendo E2E a la vez, cada uno necesita su puerto (`E2E_PORT=3107 pnpm e2e`): si no, `reuseExistingServer` puede tomar el servidor de otro.
 
 ## Navegadores
 
