@@ -61,6 +61,7 @@ vi.mock("./colors", () => ({
     province: "marker-province",
     label: "marker-label",
     city: "marker-city",
+    sighting: "marker-sighting",
     biome: {
       forest: "marker-forest",
       grassland: "marker-grassland",
@@ -86,6 +87,19 @@ describe("BaseMap", () => {
   beforeEach(() => {
     fake.FakeMap.instances = [];
     fake.FakeMap.throwOnCreate = false;
+  });
+
+  it("hands the sightings to the style", () => {
+    render(
+      <BaseMap
+        habitats={habitats}
+        sightings={[[25, -58.4, -34.6]]}
+        labels={labels}
+        padding={padding}
+        onStatusChange={vi.fn()}
+      />,
+    );
+    expect(lastMap().options.style.sources.sightings.data).toMatchObject({ features: [{ properties: { speciesId: 25 } }] });
   });
 
   it("hands the habitats to the style", () => {

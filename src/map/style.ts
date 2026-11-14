@@ -2,10 +2,13 @@ import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
 import { BIOME_OPACITY } from "@/domain/color/biome";
 import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { MapColors } from "./colors";
+import type { CompactSighting } from "@/domain/sightings/compact";
 import type { HabitatCollection } from "./habitats";
+import { SIGHTING_MIN_ZOOM, SIGHTING_OPACITY, SIGHTING_RADIUS, toSightingCollection } from "./sightings";
 
 const SOURCE = "openmaptiles";
 const HABITATS = "habitats";
+const SIGHTINGS = "sightings";
 const NAME: ExpressionSpecification = [
   "coalesce",
   ["get", "name:es"],
@@ -30,13 +33,40 @@ function habitatColor({ biome, land }: MapColors): ExpressionSpecification {
   ];
 }
 
-export function buildStyle(colors: MapColors, habitats: HabitatCollection): StyleSpecification {
+// Without sightings (catalog down) the map still works, just without the layer
+function sightingLayers(colors: MapColors, sightings: readonly CompactSighting[]): Pick<StyleSpecification, "sources" | "layers"> {
+  if (sightings.length === 0) return { sources: {}, layers: [] };
+  return {
+    sources: { [SIGHTINGS]: { type: "geojson", data: toSightingCollection(sightings) } },
+    layers: [
+      {
+        id: SIGHTINGS,
+        type: "circle",
+        source: SIGHTINGS,
+        minzoom: SIGHTING_MIN_ZOOM,
+        paint: {
+          "circle-radius": SIGHTING_RADIUS,
+          "circle-color": colors.sighting,
+          "circle-opacity": SIGHTING_OPACITY,
+        },
+      },
+    ],
+  };
+}
+
+export function buildStyle(
+  colors: MapColors,
+  habitats: HabitatCollection,
+  sightings: readonly CompactSighting[] = [],
+): StyleSpecification {
   const habitatPaint = { "fill-color": habitatColor(colors), "fill-opacity": BIOME_OPACITY };
+  const dots = sightingLayers(colors, sightings);
   return {
     version: 8,
     sources: {
       [SOURCE]: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
       [HABITATS]: { type: "geojson", data: habitats },
+      ...dots.sources,
     },
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     layers: [
@@ -105,6 +135,8 @@ export function buildStyle(colors: MapColors, habitats: HabitatCollection): Styl
         filter: ["all", ["==", ["get", "admin_level"], 2], ON_LAND],
         paint: { "line-color": colors.border, "line-width": 1.2 },
       },
+      // Over the biomes and borders so the dots read, under the labels so names stay legible
+      ...dots.layers,
       {
         id: "water-name",
         type: "symbol",

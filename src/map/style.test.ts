@@ -3,6 +3,7 @@ import type { HabitatCollection } from "./habitats";
 import type { MapColors } from "./colors";
 import { BIOME_OPACITY } from "@/domain/color/biome";
 import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
+import type { CompactSighting } from "@/domain/sightings/compact";
 import { buildStyle } from "./style";
 
 // Obviously fake values: the test only checks that every color comes from here
@@ -14,6 +15,7 @@ const COLORS: MapColors = {
   province: "marker-province",
   label: "marker-label",
   city: "marker-city",
+  sighting: "marker-sighting",
   biome: {
     forest: "marker-forest",
     grassland: "marker-grassland",
@@ -35,14 +37,21 @@ const HABITATS: HabitatCollection = {
   ],
 };
 
-const style = buildStyle(COLORS, HABITATS);
+const SIGHTINGS: CompactSighting[] = [
+  [25, -58.4, -34.6],
+  [7, -60.1, -45.2],
+];
+
+const style = buildStyle(COLORS, HABITATS, SIGHTINGS);
 const layers = style.layers;
+
+const OWN_SOURCES = ["habitats", "sightings"];
 
 describe("buildStyle", () => {
   it("every layer reads an OpenMapTiles source-layer", () => {
     const allowed = ["water", "waterway", "boundary", "water_name", "place"];
     for (const layer of layers) {
-      if (layer.type === "background" || ("source" in layer && layer.source === "habitats")) continue;
+      if (layer.type === "background" || ("source" in layer && OWN_SOURCES.includes(layer.source))) continue;
       expect(
         "source-layer" in layer ? layer["source-layer"] : undefined,
         layer.id,
@@ -248,5 +257,45 @@ describe("ARGENTINA_OUTLINE", () => {
     ["Asunción", -57.58, -25.26],
   ])("excludes %s", (_name, lng, lat) => {
     expect(inside(lng, lat)).toBe(false);
+  });
+});
+
+describe("sightings layer", () => {
+  const index = (id: string) => layers.findIndex((l) => l.id === id);
+  const layer = layers.find((l) => l.id === "sightings");
+
+  it("feeds each sighting as a point with its species id", () => {
+    expect(style.sources.sightings).toEqual({
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: { speciesId: 25 }, geometry: { type: "Point", coordinates: [-58.4, -34.6] } },
+          { type: "Feature", properties: { speciesId: 7 }, geometry: { type: "Point", coordinates: [-60.1, -45.2] } },
+        ],
+      },
+    });
+  });
+
+  it("draws faint 2 px dots in the muted color, only from zoom 5", () => {
+    if (layer?.type !== "circle") throw new Error("missing sightings circle layer");
+    expect(layer.minzoom).toBe(5);
+    expect(layer.paint).toEqual({
+      "circle-radius": 2,
+      "circle-color": "marker-sighting",
+      "circle-opacity": 0.5,
+    });
+  });
+
+  it("sits over the habitats and borders, under every label", () => {
+    expect(index("sightings")).toBeGreaterThan(index("boundary-country"));
+    const firstLabel = layers.findIndex((l) => l.type === "symbol");
+    expect(index("sightings")).toBeLessThan(firstLabel);
+  });
+
+  it("is left out when there are no sightings", () => {
+    const empty = buildStyle(COLORS, HABITATS, []);
+    expect(empty.sources.sightings).toBeUndefined();
+    expect(empty.layers.some((l) => l.id === "sightings")).toBe(false);
   });
 });

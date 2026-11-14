@@ -1,6 +1,8 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { preconnect } from "react-dom";
+import { toCompact } from "@/domain/sightings/compact";
+import { loadSightings } from "@/features/sightings/queries";
 import { MapStage } from "./_components/map-stage";
 
 const ATTRIBUTION_LINK =
@@ -13,6 +15,8 @@ export default async function Home() {
   const t = await getTranslations("Home");
   const tMap = await getTranslations("Map");
   const messages = await getMessages();
+  // Never throws; on failure the map simply has no sightings layer (the data notice arrives with the sweep)
+  const sightings = await loadSightings();
   return (
     // Bottom column: MapStage's notice and controls stack above the attribution; the map fills it absolutely
     <div className="relative flex h-dvh flex-col justify-end gap-2 overflow-hidden bg-map-sea pb-[env(safe-area-inset-bottom)]">
@@ -26,7 +30,7 @@ export default async function Home() {
       <main className="pointer-events-none flex flex-col items-end gap-2 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]">
         {/* A nested provider replaces the messages, so every namespace the island reads goes here */}
         <NextIntlClientProvider messages={{ Map: messages.Map, Button: messages.Button, Habitats: messages.Habitats }}>
-          <MapStage />
+          <MapStage sightings={sightings.ok ? toCompact(sightings.data) : undefined} />
         </NextIntlClientProvider>
       </main>
       <footer

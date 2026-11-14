@@ -13,6 +13,7 @@ const fake = vi.hoisted(() => ({
   onStatusChange: null as ((status: "ready" | "error") => void) | null,
   padding: null as { top: number; right: number; bottom: number; left: number } | null,
   habitats: null as { features: { properties: { habitat: string } }[] } | null,
+  sightings: undefined as readonly (readonly [number, number, number])[] | undefined,
   handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {} },
   webgl2: true,
 }));
@@ -21,11 +22,13 @@ vi.mock("@/map/base-map", async () => {
   const { useEffect, useImperativeHandle } = await import("react");
   function BaseMap({
     habitats,
+    sightings,
     padding,
     onStatusChange,
     ref,
   }: {
     habitats: typeof fake.habitats;
+    sightings?: typeof fake.sightings;
     padding: Padding;
     onStatusChange(status: MapStatus): void;
     ref?: Ref<typeof fake.handle>;
@@ -34,6 +37,7 @@ vi.mock("@/map/base-map", async () => {
       fake.onStatusChange = onStatusChange;
       fake.padding = padding;
       fake.habitats = habitats;
+      fake.sightings = sightings;
     });
     useEffect(() => {
       fake.mounts += 1;
@@ -106,6 +110,7 @@ describe("MapStage", () => {
     fake.onStatusChange = null;
     fake.padding = null;
     fake.habitats = null;
+    fake.sightings = undefined;
     fake.webgl2 = true;
     fake.handle = { zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn() };
     wide = false;
@@ -286,6 +291,12 @@ describe("MapStage", () => {
     expect(fake.habitats?.features.map((f) => f.properties.habitat).sort()).toEqual(
       ["forest", "grassland", "mountain", "rough-terrain", "sea", "waters-edge"],
     );
+  });
+
+  it("hands the sightings to the map", async () => {
+    render(<MapStage sightings={[[25, -58.4, -34.6]]} />);
+    await flush();
+    expect(fake.sightings).toEqual([[25, -58.4, -34.6]]);
   });
 
   it("the habitat legend waits for the map", async () => {

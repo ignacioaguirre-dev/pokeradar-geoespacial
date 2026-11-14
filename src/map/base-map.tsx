@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef } from "react";
 import { ARGENTINA_BOUNDS, MAX_BOUNDS, MIN_ZOOM } from "./argentina";
 import { readMapColors } from "./colors";
+import type { CompactSighting } from "@/domain/sightings/compact";
 import type { HabitatCollection } from "./habitats";
 import { buildStyle } from "./style";
 
@@ -24,6 +25,8 @@ type Padding = { top: number; right: number; bottom: number; left: number };
 
 type BaseMapProps = {
   habitats: HabitatCollection;
+  // Fixed for the map's life; an empty list leaves the layer out
+  sightings?: readonly CompactSighting[];
   labels: { region: string; keyboardHelp: string };
   padding: Padding;
   onStatusChange(status: MapStatus): void;
@@ -35,7 +38,7 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function BaseMap({ habitats, labels, padding, onStatusChange, ref }: BaseMapProps) {
+export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, ref }: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const helpId = useId();
@@ -47,7 +50,7 @@ export function BaseMap({ habitats, labels, padding, onStatusChange, ref }: Base
     (container: HTMLDivElement) =>
       new MapLibreMap({
         container,
-        style: buildStyle(readMapColors(), habitats),
+        style: buildStyle(readMapColors(), habitats, sightings),
         bounds: ARGENTINA_BOUNDS,
         // Absolute so the fit also sets the map padding and the padding effect starts as a no-op
         fitBoundsOptions: { padding, absolutePadding: true },

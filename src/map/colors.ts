@@ -8,6 +8,7 @@ export type MapColors = {
   province: string;
   label: string;
   city: string;
+  sighting: string;
   biome: Record<AreaHabitat, string>;
 };
 
@@ -23,6 +24,8 @@ export function readMapColors(): MapColors {
     province: token("map-province"),
     label: token("muted"),
     city: token("foreground"),
+    // Neutral gray: dots must not compete with the biome fills nor read as a habitat
+    sighting: token("muted"),
     biome: {
       forest: token("biome-forest"),
       grassland: token("biome-grassland"),
