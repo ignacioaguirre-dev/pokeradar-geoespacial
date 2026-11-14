@@ -526,7 +526,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
                 <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
               </div>
             ) : null}
-            {wide ? (
+            {/* During the entry flight there is only the map: the controls come in once it lands, ready to use */}
+            {wide && !flying ? (
               <ControlRow
                 helpRef={helpRef}
                 disabled={!interactive}
@@ -550,7 +551,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
           onClickCapture={dismissHelp}
         >
           {/* Out of the way while the detail sheet is up; the map itself still pinches and drags */}
-          {wide || sheetOver ? null : (
+          {wide || sheetOver || flying ? null : (
             <ControlColumn
               ref={columnRef}
               disabled={!interactive}
