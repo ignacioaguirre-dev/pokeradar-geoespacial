@@ -1,15 +1,18 @@
 import { useId } from "react";
+import { GrowingMeter } from "./growing-meter";
 import { Quantity } from "./quantity";
 
 type Props = {
   label: string;
   value: number;
   max: number;
-  // The fill grows in on mount; only the drawing moves, the meter holds its value from the start
+  // The fill grows from zero when the bar appears
   grow?: boolean;
+  // Position in a list of growing bars, to stagger them
+  order?: number;
 };
 
-export function EnergyBar({ label, value, max, grow = false }: Props) {
+export function EnergyBar({ label, value, max, grow = false, order }: Props) {
   const id = useId();
   const clamped = Math.min(Math.max(value, 0), Math.max(max, 0));
   return (
@@ -24,13 +27,11 @@ export function EnergyBar({ label, value, max, grow = false }: Props) {
         <Quantity value={clamped} />
       </div>
       {/* Native meter: role, name and range come from the platform; looks live in globals.css */}
-      <meter
-        id={id}
-        className={grow ? "energy-meter energy-meter-grow" : "energy-meter"}
-        min={0}
-        max={max}
-        value={clamped}
-      />
+      {grow ? (
+        <GrowingMeter id={id} value={clamped} max={max} order={order} />
+      ) : (
+        <meter id={id} className="energy-meter" min={0} max={max} value={clamped} />
+      )}
     </div>
   );
 }

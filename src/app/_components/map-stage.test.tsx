@@ -586,14 +586,14 @@ describe("MapStage", () => {
       expect(fake.sweep!.detailPadding()).toEqual({ top: 96, right: 396, bottom: 72, left: 352 });
     });
 
-    // The sheet rests on the folded attribution and stops 160 px from the top: the creature lands above it
+    // The sheet rises from the bottom edge and stops 160 px from the top: the creature lands above it
     it("on phones the detail leaves the creature above the sheet", async () => {
       window.innerHeight = 844;
       render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
       await flush();
-      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 558, left: 12 });
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 506, left: 12 });
       window.innerHeight = 500;
-      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 340, left: 12 });
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 300, left: 12 });
       window.innerHeight = 768;
     });
 

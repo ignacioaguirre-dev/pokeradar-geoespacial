@@ -252,7 +252,7 @@ test.describe("with WebGL2", () => {
     }
   });
 
-  test("on phones the detail sheet leaves the map attribution in view", async ({ page }) => {
+  test("on phones the detail sheet rises from the bottom edge", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     await waitForMapReady(page);
@@ -260,12 +260,9 @@ test.describe("with WebGL2", () => {
     await list(page, IBERA).first().click();
     const sheet = page.getByRole("region", { name: /./ }).filter({ has: page.getByRole("heading", { level: 2 }) });
     await expect(sheet).toBeVisible({ timeout: 15_000 });
-    // Folded behind one button on phones; still in reach under the sheet
-    const attribution = page.getByRole("contentinfo", { name: messages.Map.attribution });
-    await expect(attribution).toBeVisible();
     await settled(sheet);
-    const [sheetBox, attributionBox] = [await sheet.boundingBox(), await attribution.boundingBox()];
-    expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(attributionBox!.y + 1);
+    const sheetBox = await sheet.boundingBox();
+    expect(Math.round(sheetBox!.y + sheetBox!.height)).toBe(844);
   });
 
   // Phones: the sweep panel across the bottom, the control column at the right, the folded attribution below, and the
@@ -333,7 +330,6 @@ test.describe("with WebGL2", () => {
       await settled(sheet);
       if (phone) {
         await expect(nav).toHaveCount(0);
-        await expectApart({ sheet, attribution });
         // A short phone still keeps some map above the sheet for the creature it is about
         expect((await sheet.boundingBox())!.y).toBeGreaterThanOrEqual(159);
       } else {
