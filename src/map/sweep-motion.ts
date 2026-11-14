@@ -4,7 +4,7 @@ import type { LngLat, Ring } from "@/domain/geometry/types";
 type Curve = readonly [x1: number, y1: number, x2: number, y2: number];
 type Ease = (t: number) => number;
 
-// Each ring ends at a share of the fence's reach; the outer one passes through its farthest vertex
+// Each ring ends at a share of the fence's mean reach, so the outer one roughly follows its outline
 export const RING_FRACTIONS = [1 / 3, 2 / 3, 1] as const;
 // They stay once the sweep ends, faint inside so the creatures and the fence read first
 export const RING_OPACITY = [0.35, 0.5, 0.7] as const;
@@ -82,15 +82,17 @@ function mercator([lng, lat]: LngLat): [number, number] {
   return [x, y];
 }
 
-// How far the fence reaches from its center, in pixels at zoom 0
+// How far the fence reaches from its center, in pixels at zoom 0. The mean over the vertices: the farthest one
+// would send the outer ring well past the other sides of an irregular fence
 export function worldRadius(center: LngLat, ring: Ring): number {
+  if (ring.length === 0) return 0;
   const [cx, cy] = mercator(center);
-  let reach = 0;
+  let total = 0;
   for (const vertex of ring) {
     const [x, y] = mercator(vertex);
-    reach = Math.max(reach, Math.hypot(x - cx, y - cy));
+    total += Math.hypot(x - cx, y - cy);
   }
-  return reach;
+  return total / ring.length;
 }
 
 // circle-radius is in screen pixels; doubling it per zoom level keeps the ring the same size on the ground

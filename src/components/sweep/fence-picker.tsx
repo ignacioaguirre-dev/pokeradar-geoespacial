@@ -31,7 +31,8 @@ export function FencePicker({ fences, active, onChoose }: Props) {
                 variant={pressed ? "primary" : "secondary"}
                 aria-pressed={pressed}
                 onClick={() => onChoose(id)}
-                className="w-full px-3! whitespace-nowrap md:justify-start"
+                // One line in the phone row; in the narrow desktop columns a long name wraps instead of spilling
+                className="w-full px-3! whitespace-nowrap md:justify-start md:py-1 md:text-left md:leading-tight md:whitespace-normal"
               >
                 {name}
               </Button>

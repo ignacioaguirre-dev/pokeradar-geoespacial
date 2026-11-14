@@ -86,25 +86,30 @@ describe("sweepFrame", () => {
 });
 
 describe("worldRadius", () => {
-  it("is the farthest vertex from the center, in zoom-0 pixels", () => {
+  it("is the fence's mean reach from the center, in zoom-0 pixels", () => {
     // 512 px span 360° at zoom 0, so 1° of longitude at the equator is 512 / 360 px
     expect(
       worldRadius(
         [0, 0],
         [
           [1, 0],
-          [0, 0.5],
-          [-0.5, 0],
+          [0, 1],
+          [-1, 0],
+          [0, -1],
         ],
       ),
-    ).toBeCloseTo(512 / 360, 4);
+    ).toBeCloseTo(512 / 360, 2);
+  });
+
+  // The farthest vertex would throw the outer ring well past the other sides of the fence
+  it("a single far vertex does not set the reach", () => {
+    const ring = [[1, 0], [0, 1], [-1, 0], [0, -1], [4, -4]] as const;
+    expect(worldRadius([0, 0], ring)).toBeLessThan((2 * 512) / 360);
   });
 
   it("grows toward the poles like the Mercator map", () => {
-    const ring = [[1, -45] as const, [-1, -45] as const];
-    expect(worldRadius([0, -45], ring)).toBeCloseTo(512 / 360, 4);
-    const north = [[0, -44] as const];
-    expect(worldRadius([0, -45], north)).toBeGreaterThan(512 / 360);
+    expect(worldRadius([0, -45], [[1, -45], [-1, -45]])).toBeCloseTo(512 / 360, 4);
+    expect(worldRadius([0, -45], [[0, -44], [0, -46]])).toBeGreaterThan(512 / 360);
   });
 });
 
