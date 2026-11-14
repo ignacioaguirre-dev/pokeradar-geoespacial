@@ -63,8 +63,9 @@ export async function waitForMapReady(page: Page): Promise<void> {
     timeout: 30_000,
   });
   const skip = page.getByRole("button", { name: messages.Map.skipIntroLabel });
-  if (await skip.isVisible()) await skip.click();
-  await expect(skip).toBeHidden();
+  // The flight can end on its own between the check and the click, which removes the button
+  if (await skip.isVisible()) await skip.click({ timeout: 2_000 }).catch(() => undefined);
+  await expect(skip).toBeHidden({ timeout: 10_000 });
 }
 
 // Sums the gzip size of every <script src> in the page's HTML, so it needs no browser
