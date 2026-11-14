@@ -196,3 +196,12 @@
     animation: none;
   }
 }
+
+/* Tailwind's preflight leaves buttons with the default cursor; anything that acts shows the hand */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href] {
+    cursor: pointer;
+  }
+}
