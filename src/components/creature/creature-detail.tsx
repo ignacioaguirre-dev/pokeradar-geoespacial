@@ -94,8 +94,9 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef,
       <header className="flex flex-col gap-1">
         <h2
           ref={titleRef}
+          // Focus lands here when the panel opens, for screen readers; a heading is not a control, so no ring
           tabIndex={-1}
-          className="order-last self-start font-display font-stretch-condensed text-headline font-extrabold uppercase wrap-break-word rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+          className="order-last self-start font-display font-stretch-condensed text-headline font-extrabold uppercase wrap-break-word outline-none"
         >
           {ready ? (
             data.name
