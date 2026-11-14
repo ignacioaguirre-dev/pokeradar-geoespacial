@@ -11,7 +11,7 @@ import { Notice } from "@/components/ui/notice";
 import { FENCES } from "@/data/fences";
 import type { LngLat, Ring } from "@/domain/geometry/types";
 import { spriteUrl } from "@/features/catalog/sprite";
-import { CREATURE_PARAM, openCreature, parseCreatureId } from "@/features/creature/history";
+import { CREATURE_PARAM, parseCreatureId } from "@/features/creature/history";
 import { useOnline } from "@/hooks/use-online";
 import {
   getSnapshot as hasSeenMapHelp,
@@ -25,6 +25,7 @@ import { useResolved } from "@/hooks/use-resolved";
 import type { MapHandle, MapInput, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
+import { openCreatureFromMap } from "./creature-transition";
 import type { FenceDrawingHandle } from "./fence-drawing";
 import { FenceDrawing, FenceDrawingTrigger, preloadFenceDrawing } from "./fence-drawing-entry";
 import { introPlayed } from "./intro-played";
@@ -397,7 +398,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
     focus,
     fencePadding: () => fencePadding(wide, focus !== null, sweepPanelRef.current),
     detailPadding: () => detailPadding(wide),
-    onSelect: openCreature,
+    onSelect: openCreatureFromMap,
     onIntent: prepareCreature,
   };
 
@@ -504,7 +505,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
               <SweepReading
                 detection={detection}
                 fenceName={fence ? (fence.id === OWN_FENCE_ID ? tDrawing("own") : tFences(fence.id)) : null}
-                onOpen={openCreature}
+                onOpen={openCreatureFromMap}
                 onIntent={prepareCreature}
                 onRetry={() => window.location.reload()}
               />

@@ -17,6 +17,8 @@ type Props = {
   onRetry(): void;
   onClose(): void;
   titleRef?: Ref<HTMLHeadingElement>;
+  // The still image, known from the id alone: shown while the detail loads, so the sprite is there from the start
+  placeholderSprite?: string;
 };
 
 // Base stats top out at 255 across every species
@@ -78,7 +80,7 @@ function Sprite({ sprite, name }: { sprite: Detail["sprite"]; name: string }) {
   );
 }
 
-export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef }: Props) {
+export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef, placeholderSprite }: Props) {
   const t = useTranslations("Creature");
   const tStats = useTranslations("Stats");
   const tTypes = useTranslations("Types");
@@ -133,11 +135,24 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
       ) : (
         <>
           <div className="flex gap-4">
-            {ready ? (
-              <Sprite sprite={data.sprite} name={data.name} />
-            ) : (
-              <span aria-hidden="true" className={`size-24 shrink-0 ${SKELETON}`} />
-            )}
+            {/* One named slot for every state: the marker's image travels here when the detail opens from the map */}
+            <span data-creature-sprite="" className="block size-24 shrink-0 [view-transition-name:creature-sprite]">
+              {ready ? (
+                <Sprite sprite={data.sprite} name={data.name} />
+              ) : placeholderSprite ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={placeholderSprite}
+                  alt=""
+                  width={96}
+                  height={96}
+                  crossOrigin="anonymous"
+                  className="size-24 object-contain [image-rendering:pixelated]"
+                />
+              ) : (
+                <span aria-hidden="true" className={`block size-24 ${SKELETON}`} />
+              )}
+            </span>
             <div className="flex min-w-0 flex-col gap-3">
               {ready ? (
                 <ul aria-label={t("types")} className="flex flex-wrap gap-x-3 gap-y-1">
