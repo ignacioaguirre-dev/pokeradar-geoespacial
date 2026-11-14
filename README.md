@@ -72,15 +72,6 @@ Más detalle de servidor y cliente, datos, calidad (CI, accesibilidad, rendimien
 
 Cada unidad pasa por una revisión independiente y por una prueba manual en el navegador, y cada bug entra con un test que primero lo reproduce. Lo que marca una revisión lo lee una persona, que decide si es real y cómo se corrige.
 
-*Afirmó o asumió sin verificar*
-
-- Asumió que la cuenta de `gh` activa era la que decía la etiqueta, y commiteó con la identidad global.
-  → Identidad, firma y `gh` propios del repo, y commits rehechos.
-- Fijó como «última» una versión de jsdom publicada ese mismo día, y pnpm agregó solo una excepción a su guarda de antigüedad mínima.
-  → Se volvió a la versión anterior y se quitó la excepción.
-- Tapó un error de tipos con `typeRoots` en vez de buscar la causa (un `node_modules` huérfano fuera del proyecto).
-  → Se fue a la causa y se quitó el parche.
-
 *Se salió del proceso o del alcance*
 
 - Salteó la spec y el plan de algunas unidades por interpretar de más una decisión.
