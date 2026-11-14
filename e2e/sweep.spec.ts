@@ -221,11 +221,22 @@ test.describe("with WebGL2", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     await waitForMapReady(page);
+    // Every zoom the map settles on from here: the fence's frame first, then the closer one on its creatures.
+    // Recorded instead of read afterwards, because on a slow run the camera has closed in before the markers show
+    await page.evaluate(() => {
+      const map = document.querySelector("[data-map]")!;
+      const seen: number[] = [];
+      (window as unknown as { __zooms: number[] }).__zooms = seen;
+      new MutationObserver(() => seen.push(Number(map.getAttribute("data-zoom")))).observe(map, {
+        attributeFilter: ["data-zoom"],
+      });
+    });
     await choose(page, IBERA);
     await expect(markers(page)).toHaveCount(12, { timeout: 15_000 });
-    const zoom = () => page.locator("[data-map]").getAttribute("data-zoom").then(Number);
-    const landed = await zoom();
-    await expect.poll(zoom, { timeout: 10_000 }).toBeGreaterThan(landed);
+    const zooms = () => page.evaluate(() => [...new Set((window as unknown as { __zooms: number[] }).__zooms)]);
+    await expect.poll(async () => (await zooms()).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+    const [framed, ...closer] = await zooms();
+    expect(closer.at(-1)).toBeGreaterThan(framed);
     const boxes = await markers(page).evaluateAll((buttons) =>
       buttons.map((b) => {
         const { x, y, width, height } = b.getBoundingClientRect();
