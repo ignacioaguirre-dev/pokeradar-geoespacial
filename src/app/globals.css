@@ -136,6 +136,12 @@
   }
 }
 
+/* Drawing a fence: a cross says a click places a point. Unlayered and more specific than MapLibre's own
+   unlayered grab cursor, which would win over any layer */
+[data-drawing] .maplibregl-canvas-container.maplibregl-interactive {
+  cursor: crosshair;
+}
+
 /* Sweep markers: built by src/map as plain DOM inside MapLibre's container, so they are styled here.
    An ochre ring (a creature present by its habitat) around the still sprite, with the ● shape mark */
 @layer components {
