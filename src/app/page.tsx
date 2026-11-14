@@ -36,6 +36,7 @@ export default async function Home() {
         <NextIntlClientProvider
           messages={{
             Map: messages.Map,
+            MapHelp: messages.MapHelp,
             Button: messages.Button,
             Habitats: messages.Habitats,
             Creature: messages.Creature,

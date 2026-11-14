@@ -5,12 +5,19 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { usePointerKind } from "@/hooks/use-pointer-kind";
 import { useResolved } from "@/hooks/use-resolved";
 import type { CompactSighting } from "@/domain/sightings/compact";
-import type { MapHandle, MapStatus } from "@/map/base-map";
+import {
+  getSnapshot as hasSeenMapHelp,
+  markMapHelpSeen,
+  subscribe as subscribeMapHelp,
+} from "@/features/map-help/storage";
+import type { MapHandle, MapInput, MapStatus } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute } from "./creature-route";
 import { HabitatLegend } from "./habitat-legend";
+import { introLines, MapHelpButton, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
 
 // The notices come from MapStage, so the chunk shows nothing while it downloads.
 // HabitatMap carries the habitat data, so it rides in this deferred chunk instead of the initial JS
@@ -74,6 +81,12 @@ function subscribeOnline(onChange: () => void) {
   };
 }
 
+// The server cannot read storage, so it renders as seen and the intro only appears after hydration.
+// The store is the single source of truth: dismissing writes there and every reader follows
+function useHelpSeen(): boolean {
+  return useSyncExternalStore(subscribeMapHelp, hasSeenMapHelp, () => true);
+}
+
 function useOnline(): boolean {
   return useSyncExternalStore(
     subscribeOnline,
@@ -95,7 +108,13 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
   const supported = useWebGL2Support();
   const wide = useWideViewport();
   const online = useOnline();
+  const pointer = usePointerKind();
+  const helpSeen = useHelpSeen();
+  // A ref, not state: it changes mid-gesture and is only read when the help panel opens
+  const detectedRef = useRef<MapInput | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const mapRef = useRef<MapHandle>(null);
+  const helpRef = useRef<MapHelpButtonHandle>(null);
   const regionRef = useRef<HTMLElement>(null);
   const [key, setKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -139,6 +158,36 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
           ? "offline"
           : phase;
   const ready = visible === "ready";
+  // On a phone the detail is a bottom sheet over the controls row, so the help waits under it until it closes
+  const sheetOver = detailOpen && !wide;
+  const showHelp = ready && pointer !== null && !helpSeen && !sheetOver;
+
+  // Remembered even when storage fails: then it only lasts until the page reloads
+  function dismissHelp() {
+    if (!showHelp) return;
+    markMapHelpSeen();
+  }
+
+  // The first move of the map closes whichever help is showing, the intro or the panel
+  function handleInteract() {
+    dismissHelp();
+    helpRef.current?.close();
+  }
+
+  function handleDetailChange(open: boolean) {
+    setDetailOpen(open);
+    if (open && !wide) helpRef.current?.close();
+  }
+
+  function handleInputDetected(input: MapInput) {
+    detectedRef.current = input;
+  }
+
+  function acknowledgeHelp() {
+    dismissHelp();
+    // The focused Entendido unmounts; the help button is where this help lives from now on
+    helpRef.current?.focus();
+  }
 
   // Keyed per state so an alert is inserted fresh (and announced) instead of mutating the status node
   const notice =
@@ -182,16 +231,35 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
             labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
             padding={wide ? PADDING_WIDE : PADDING_NARROW}
             onStatusChange={handleStatus}
+            onInputDetected={handleInputDetected}
+            onInteract={handleInteract}
           />
         ) : null}
       </section>
       {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
       {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
       {supported === false ? null : (
-        // Legend left, controls right: the same order on screen and for the keyboard.
+        // Legend and help left, controls right: the same order on screen and for the keyboard.
         // On phones they do not fit side by side: the legend keeps the first line and the controls wrap below
-        <div className="flex w-full flex-wrap items-end justify-between gap-2">
-          <HabitatLegend disabled={!ready} />
+        // Using any control counts as the first interaction, so it also closes the intro
+        <div className="relative flex w-full flex-wrap items-end justify-between gap-2" onClickCapture={dismissHelp}>
+          {/* Floats above the controls instead of joining the column, which would grow upward as a layout shift */}
+          {showHelp ? (
+            // Left, by the help button: on desktop the right side belongs to the creature detail
+            <div className="pointer-events-auto absolute left-0 bottom-full mb-2 w-full max-w-sm">
+              <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
+            </div>
+          ) : null}
+          {/* The help button keeps its visible label, which does not fit beside the map controls on a 360 px phone,
+              so it rides in the legend's row: both explain the map, the nav moves it */}
+          <div className="flex gap-2">
+            <HabitatLegend disabled={!ready} />
+            <MapHelpButton
+              ref={helpRef}
+              lines={() => panelLines(pointer, detectedRef.current)}
+              disabled={!ready}
+            />
+          </div>
           <nav aria-label={t("controls")} className="pointer-events-auto relative ml-auto flex shrink-0 gap-2">
           <Button
             variant="secondary"
@@ -220,7 +288,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
       {/* Its own boundary: reading the URL must not keep the map and its controls out of the prerender.
           Independent of the map's phase, so the detail shows even when the map cannot load */}
       <Suspense fallback={null}>
-        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} />
+        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} onOpenChange={handleDetailChange} />
       </Suspense>
     </>
   );
