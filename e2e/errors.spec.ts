@@ -1,12 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import messages from "../messages/es-AR.json";
-import { expectNoA11yViolations, expectScreenshot, mockOpenFreeMap, waitForMapReady } from "./helpers";
+import { expectNoA11yViolations, expectScreenshot, mockOpenFreeMap } from "./helpers";
 
 const t = messages.AppError;
 const notFound = messages.NotFound;
 
 // Next's built-in screens, in English and without a way back: they must never reach a person
 const GENERIC = /This page couldn.t load|could not be found|Application error/i;
+
+// The map's region, not its drawing: headless Firefox in CI has no WebGL2, and these tests are about the way back
+async function expectBackOnMap(page: Page) {
+  await expect(page.getByRole("region", { name: messages.Map.region })).toBeVisible();
+}
 
 test.beforeEach(async ({ page }) => {
   await mockOpenFreeMap(page);
@@ -36,7 +41,7 @@ test("a crash in the page shows the app's own error, and retry recovers @critica
     (window as unknown as { __crash: boolean }).__crash = false;
   });
   await alert.getByRole("button", { name: t.retry }).click();
-  await waitForMapReady(page);
+  await expectBackOnMap(page);
   await expect(alert).toHaveCount(0);
 });
 
@@ -59,7 +64,7 @@ test("the unknown address leads back to the map and is accessible @critical", as
   await expectNoA11yViolations(page);
   await alert.getByRole("link", { name: notFound.backToMap }).click();
   await expect(page).toHaveURL("/");
-  await waitForMapReady(page);
+  await expectBackOnMap(page);
 });
 
 for (const [width, height] of [
