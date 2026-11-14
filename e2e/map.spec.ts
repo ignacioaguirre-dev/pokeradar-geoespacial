@@ -160,8 +160,8 @@ test.describe("with WebGL2", () => {
     const ring = { style: "solid", width: "2px", color: FOREGROUND };
     const stops = [
       { locator: page.getByRole("application", { name: t.region }), offset: "-2px" },
-      // The sweep panel follows the map: its fences, in their order
-      ...Object.values(messages.Fences).map((name) => ({
+      // The sweep panel follows the map: drawing an own fence, then the presets in their order
+      ...[messages.FenceDrawing.start, ...Object.values(messages.Fences)].map((name) => ({
         locator: page.getByRole("button", { name, exact: true }),
         offset: "2px",
       })),
@@ -354,8 +354,10 @@ test.describe("with WebGL2", () => {
       await expect(page.getByRole("application", { name: t.region })).toBeFocused();
       await expect(helpIntro(page)).toBeVisible();
       for (const locator of [
-        // The sweep panel's fences sit between the map and the bottom row
-        ...Object.values(messages.Fences).map((name) => page.getByRole("button", { name, exact: true })),
+        // The sweep panel's fences sit between the map and the bottom row, drawing an own one first
+        ...[messages.FenceDrawing.start, ...Object.values(messages.Fences)].map((name) =>
+          page.getByRole("button", { name, exact: true }),
+        ),
         page.getByRole("button", { name: help.dismiss }),
         page.getByRole("button", { name: t.legend }),
         page.getByRole("button", { name: help.title }),
