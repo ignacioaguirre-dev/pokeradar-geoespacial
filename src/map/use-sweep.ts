@@ -25,6 +25,8 @@ export type SweepProps = {
 
 // Close enough to see the creature among its neighbors, never zooming out from where the user is
 const CREATURE_ZOOM = 7;
+// Of the sweep's duration: long enough to follow, short enough to hop between creatures
+const CREATURE_FLIGHT_SHARE = 2 / 3;
 
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -67,8 +69,14 @@ export function useSweep(
       zoom: Math.max(map.getZoom(), CREATURE_ZOOM),
       padding: sweep.detailPadding(),
     };
-    if (reducedMotion()) map.jumpTo(camera);
-    else map.flyTo(camera);
+    if (reducedMotion()) {
+      map.jumpTo(camera);
+      return;
+    }
+    // A fixed time: MapLibre derives a flight's from its distance, and between creatures of one fence that is a
+    // frame or two, which reads as a blink
+    const { durationMs, ease } = readTiming();
+    map.flyTo({ ...camera, duration: durationMs * CREATURE_FLIGHT_SHARE, easing: ease });
   });
 
   // The marker of the creature already open: the URL does not change, so fly from here
