@@ -23,4 +23,10 @@ describe("Notice", () => {
     await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(onActivate).toHaveBeenCalledTimes(1);
   });
+
+  it("without its own role it leaves the announcement to the live region around it", () => {
+    render(<Notice variant="info" title="Sin conexión." live={false} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("Sin conexión.")).toBeInTheDocument();
+  });
 });

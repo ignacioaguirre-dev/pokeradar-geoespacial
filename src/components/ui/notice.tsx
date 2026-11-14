@@ -9,13 +9,15 @@ type Props = {
   title: string;
   children?: ReactNode;
   action?: { label: string; onActivate: () => void };
+  live?: boolean;
 };
 
-export function Notice({ variant, title, children, action }: Props) {
+export function Notice({ variant, title, children, action, live }: Props) {
   return (
     <NoticeFrame
       variant={variant}
       title={title}
+      live={live}
       trailing={
         action ? (
           <Button variant="secondary" onClick={action.onActivate}>
