@@ -78,7 +78,7 @@ describe("token contrast", () => {
         "control", "habitat", "condition", "energy", "alert",
         "map-sea", "map-land", "map-coast", "map-border", "map-province", "map-space",
         "biome-forest", "biome-grassland", "biome-waters-edge", "biome-mountain",
-        "biome-rough-terrain", "biome-sea", "sweep",
+        "biome-rough-terrain", "biome-sea", "sweep", "flag-sky",
       ].sort(),
     );
   });

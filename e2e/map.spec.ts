@@ -76,6 +76,10 @@ test.describe("with WebGL2", () => {
 
     await waitForMapReady(page);
     await expect(page.getByRole("application", { name: t.region })).toBeVisible();
+    // Phones fold the attribution behind one button (a native disclosure, which has no role to query by)
+    if (page.viewportSize()!.width < 768) {
+      await page.getByRole("contentinfo", { name: t.attribution }).locator("summary").click();
+    }
     for (const { name, href } of ATTRIBUTIONS) {
       const anchor = page.getByRole("link", { name });
       await expect(anchor).toBeVisible();
@@ -117,7 +121,8 @@ test.describe("with WebGL2", () => {
     test.setTimeout(60_000);
     await mockOpenFreeMap(page, { delayMs: 9_000 });
     await page.goto("/");
-    await expect(page.getByRole("status")).toContainText(t.slow, { timeout: 15_000 });
+    // The connection notice is a status too, always present and empty while online
+    await expect(page.getByRole("status").filter({ hasText: t.slow })).toBeVisible({ timeout: 15_000 });
     await waitForMapReady(page);
     await expect(page.getByText(t.slow)).toHaveCount(0);
   });
@@ -130,8 +135,11 @@ test.describe("with WebGL2", () => {
     await mockOpenFreeMap(page, { fail: true });
     await page.goto("/");
     const alert = mapAlert(page);
-    await expect(alert).toContainText(t.offlineTitle);
+    await expect(alert).toContainText(t.errorTitle);
+    await expect(alert).toContainText(t.offlineBody);
     await expect(alert.getByRole("button", { name: t.retry })).toBeVisible();
+    // The global connection notice is the only one that says so
+    await expect(page.getByText(messages.Connection.offlineTitle)).toHaveCount(1);
   });
 
   test("no layout shift while loading", async ({ page }) => {
@@ -542,6 +550,27 @@ test.describe("movement help", () => {
       await expect(intro).not.toContainText(help.mouse);
       await expectNoA11yViolations(page);
     });
+
+    // Each sheet rises from the bottom over a dimmed map: a tap on the map above it closes it
+    for (const [name, content] of [
+      [help.title, help.touch],
+      [t.legend, messages.Habitats.forest],
+    ] as const) {
+      test(`the ${name} sheet is accessible and a tap on the dimmed map closes it`, async ({ page }) => {
+        await markHelpSeen(page);
+        await page.goto("/");
+        await waitForMapReady(page);
+        const button = page.getByRole("button", { name, exact: true });
+        await button.click();
+        const sheet = page.getByRole("dialog", { name });
+        await expect(sheet).toContainText(content);
+        await expect(button).toHaveAttribute("aria-expanded", "true");
+        await expectNoA11yViolations(page);
+        await page.mouse.click(40, 120);
+        await expect(sheet).toHaveCount(0);
+        await expect(button).toBeFocused();
+      });
+    }
   });
 
   type Box = { x: number; y: number; width: number; height: number };
@@ -559,6 +588,7 @@ test.describe("movement help", () => {
   for (const [width, height] of [
     [360, 740],
     [390, 844],
+    [1024, 768],
     [1280, 800],
   ] as const) {
     test(`at ${width} px the help fits on screen and never sits under the creature detail`, async ({ page }) => {
@@ -571,8 +601,9 @@ test.describe("movement help", () => {
       // Settled: the panel slides in
       await expect.poll(async () => (await boxOf(detail)).x).toBe(width < 768 ? 0 : width - 12 - 360);
       const intro = helpIntro(page);
-      if (width < 768) {
-        // The bottom sheet covers the sweep panel, where the help opens, so it waits until it closes
+      const helpButton = page.getByRole("button", { name: help.title });
+      if (width < 1120) {
+        // A phone's sheet or a narrow desktop's panel would cover where the help opens, so it waits until it closes
         await expect(intro).toHaveCount(0);
         await page.getByRole("button", { name: messages.Creature.close }).click();
         await expect(detail).toHaveCount(0);
@@ -581,28 +612,45 @@ test.describe("movement help", () => {
         await expect(intro).toBeVisible();
         expect(overlaps(await boxOf(intro), await boxOf(detail))).toBe(false);
       }
-      for (const box of [await boxOf(intro), await boxOf(page.getByRole("button", { name: help.title }))]) {
+      for (const box of [await boxOf(intro), await boxOf(helpButton)]) {
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);
       }
-      // On phones the button is only its 44 px info mark; from md it keeps its label. Neither crowds the controls
-      const helpButton = await boxOf(page.getByRole("button", { name: help.title }));
-      if (width < 768) expect(helpButton.width).toBe(44);
-      else expect(helpButton.width).toBeGreaterThan(44);
-      expect(
-        overlaps(
-          await boxOf(page.getByRole("button", { name: help.title })),
-          await boxOf(page.getByRole("navigation", { name: t.controls })),
-        ),
-      ).toBe(false);
+      // On phones the button is only its 44 px info mark in the control column; from md it keeps its label
+      const helpBox = await boxOf(helpButton);
+      if (width < 768) {
+        expect(helpBox.width).toBe(44);
+        expect(overlaps(await boxOf(intro), await boxOf(page.getByRole("navigation", { name: t.controls })))).toBe(false);
+      } else {
+        expect(helpBox.width).toBeGreaterThan(44);
+        expect(overlaps(helpBox, await boxOf(page.getByRole("navigation", { name: t.controls })))).toBe(false);
+      }
 
       await page.getByRole("button", { name: help.dismiss }).click();
-      await page.getByRole("button", { name: help.title }).click();
-      const panel = page.getByRole("region", { name: help.title });
+      await helpButton.click();
+      // A sheet from the bottom on phones, a panel above the row from md
+      const panel = page.getByRole(width < 768 ? "dialog" : "region", { name: help.title });
+      await expect(panel).toBeVisible();
+      // The sheet rises into place
+      await expect.poll(async () => {
+        const box = await boxOf(panel);
+        return box.y + box.height;
+      }).toBeLessThanOrEqual(height);
       const panelBox = await boxOf(panel);
       expect(panelBox.x).toBeGreaterThanOrEqual(0);
       expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(width);
-      if (width >= 768) expect(overlaps(panelBox, await boxOf(detail))).toBe(false);
+      await page.keyboard.press("Escape");
+      await expect(panel).toHaveCount(0);
+      if (width < 768) return;
+
+      // Reopened with a creature open, the panel stays clear of the detail at any desktop width
+      await page.goto("/?creature=25");
+      await waitForMapReady(page);
+      await expect(detail.getByRole("meter", { name: messages.Stats.speed })).toBeVisible({ timeout: 15_000 });
+      await expect.poll(async () => (await boxOf(detail)).x).toBe(width - 12 - 360);
+      await helpButton.click();
+      await expect(panel).toBeVisible();
+      expect(overlaps(await boxOf(panel), await boxOf(detail))).toBe(false);
     });
   }
 
@@ -641,7 +689,7 @@ test("explains when WebGL2 is missing", async ({ page }) => {
   await mockOpenFreeMap(page);
   const scripts = recordScripts(page);
   await page.goto("/");
-  await expect(page.getByRole("status")).toContainText(t.unsupportedTitle);
+  await expect(page.getByRole("status").filter({ hasText: t.unsupportedTitle })).toBeVisible();
   await page.waitForLoadState("networkidle");
   expect(await scriptsWithMapLibre(scripts)).toEqual([]);
 });

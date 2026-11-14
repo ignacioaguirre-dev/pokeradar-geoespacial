@@ -44,6 +44,7 @@ const fake = vi.hoisted(() => ({
     reticlePoint: (): readonly [number, number] | null => null,
   },
   webgl2: true,
+  chunkFailures: 0,
   // While pending, the map suspends as if its chunk were still downloading
   chunk: null as Promise<void> | null,
 }));
@@ -107,6 +108,20 @@ vi.mock("@/map/base-map", async () => {
     return null;
   }
   return { BaseMap };
+});
+
+// Reading the export stands in for a download of the map's chunk; a throw is a failed one
+vi.mock("./habitat-map", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./habitat-map")>();
+  return {
+    get HabitatMap() {
+      if (fake.chunkFailures > 0) {
+        fake.chunkFailures -= 1;
+        throw new Error("ChunkLoadError");
+      }
+      return actual.HabitatMap;
+    },
+  };
 });
 
 // The real store caches per module; each test gets a fresh one so a dismissal does not leak into the next
@@ -181,10 +196,16 @@ function click(name: string) {
 }
 
 describe("MapStage", () => {
-  // The first import transforms the habitat GeoJSON on disk, slower than the microtask flush the tests rely on
+  // The first import transforms the habitat GeoJSON on disk (and the controls' chunks, the sheet's motion), slower
+  // than the microtask flush the tests rely on
   beforeAll(async () => {
-    await import("./habitat-map");
-    await import("./fence-drawing");
+    await Promise.all([
+      import("./habitat-map"),
+      import("./fence-drawing"),
+      import("./control-column"),
+      import("./control-row"),
+      import("@/components/ui/sheet"),
+    ]);
   });
 
   beforeEach(() => {
@@ -197,6 +218,7 @@ describe("MapStage", () => {
     fake.sightings = undefined;
     fake.sweep = undefined;
     fake.webgl2 = true;
+    fake.chunkFailures = 0;
     fake.chunk = null;
     fake.intro = undefined;
     fake.introNow = undefined;
@@ -344,8 +366,10 @@ describe("MapStage", () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     await renderStage();
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Sin conexión.");
+    expect(alert).toHaveTextContent("No se pudo cargar el mapa.");
     expect(alert).toHaveTextContent("El mapa necesita internet para cargarse.");
+    // The global connection notice is the only one that says "Sin conexión."
+    expect(alert).not.toHaveTextContent("Sin conexión.");
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
   });
 
@@ -353,7 +377,71 @@ describe("MapStage", () => {
     await renderStage();
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     report("error");
-    expect(screen.getByRole("alert")).toHaveTextContent("Sin conexión.");
+    expect(screen.getByRole("alert")).toHaveTextContent("El mapa necesita internet para cargarse.");
+  });
+
+  it("remounts the map on its own when the connection comes back while offline", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await renderStage();
+    report("error");
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar el mapa.");
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(fake.mounts).toBe(2);
+    expect(fake.active).toBe(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando el mapa…");
+  });
+
+  it("remounts a failed map when the connection comes back, without moving focus", async () => {
+    await renderStage();
+    report("error");
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(fake.mounts).toBe(2);
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("keeps focus on the map region when the focused retry goes away with the reconnection", async () => {
+    await renderStage();
+    report("error");
+    screen.getByRole("button", { name: "Reintentar" }).focus();
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(document.activeElement).toBe(region());
+  });
+
+  it("leaves a working map alone when the connection comes back", async () => {
+    await renderStage();
+    report("ready");
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(fake.mounts).toBe(1);
+  });
+
+  it("a map chunk that cannot download shows the error with retry, and retry asks for it again", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fake.chunkFailures = 1;
+    await renderStage();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("No se pudo cargar el mapa.");
+    click("Reintentar");
+    await flush();
+    expect(fake.mounts).toBe(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows the unsupported notice and never mounts the map", async () => {
@@ -422,7 +510,7 @@ describe("MapStage", () => {
 
   it("updates the map padding when the viewport widens", async () => {
     await renderStage();
-    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 284, left: 12 });
+    expect(fake.padding).toEqual({ top: 64, right: 68, bottom: 160, left: 12 });
     wide = true;
     act(() => mediaListeners.forEach((listener) => listener()));
     expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 352 });
@@ -480,7 +568,7 @@ describe("MapStage", () => {
       render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
       await flush();
       click("Esteros del Iberá");
-      expect(fake.sweep?.fencePadding()).toEqual({ top: 64, right: 12, bottom: 336, left: 12 });
+      expect(fake.sweep?.fencePadding()).toEqual({ top: 64, right: 68, bottom: 212, left: 12 });
       wide = true;
       act(() => mediaListeners.forEach((listener) => listener()));
       expect(fake.sweep?.fencePadding()).toEqual({ top: 96, right: 120, bottom: 72, left: 352 });
@@ -498,14 +586,14 @@ describe("MapStage", () => {
       expect(fake.sweep!.detailPadding()).toEqual({ top: 96, right: 396, bottom: 72, left: 352 });
     });
 
-    // The sheet rests on the controls and the attribution and stops 160 px from the top: the creature lands above it
+    // The sheet rests on the folded attribution and stops 160 px from the top: the creature lands above it
     it("on phones the detail leaves the creature above the sheet", async () => {
       window.innerHeight = 844;
       render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
       await flush();
-      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 12, bottom: 684, left: 12 });
-      window.innerHeight = 740;
-      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 12, bottom: 580, left: 12 });
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 558, left: 12 });
+      window.innerHeight = 500;
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 340, left: 12 });
       window.innerHeight = 768;
     });
 
@@ -697,8 +785,9 @@ describe("MapStage", () => {
       expect(screen.queryByRole("button", { name: "Cómo moverse" })).not.toBeInTheDocument();
     });
 
-    // With its visible label it does not fit beside the map controls on a 360 px phone, so it joins the legend's row
+    // On desktop it rides in the legend's row, apart from the controls that move the map
     it("the help button sits right after the legend and waits for the map", async () => {
+      wide = true;
       await renderStage();
       const button = screen.getByRole("button", { name: "Cómo moverse" });
       const legend = screen.getByRole("button", { name: "Hábitats" });
@@ -710,6 +799,7 @@ describe("MapStage", () => {
     });
 
     it("closes the open help panel with the first move of the map, like the intro", async () => {
+      wide = true;
       localStorage.setItem(SEEN_KEY, "1");
       await readyStage();
       click("Cómo moverse");
@@ -728,28 +818,51 @@ describe("MapStage", () => {
       expect(localStorage.getItem(SEEN_KEY)).toBeNull();
     });
 
-    it("closes the help panel when the creature detail opens on a phone", async () => {
+    it("closes the help sheet when the creature detail opens on a phone", async () => {
       localStorage.setItem(SEEN_KEY, "1");
       await readyStage();
       click("Cómo moverse");
+      await flush();
+      expect(screen.getByRole("dialog", { name: "Cómo moverse" })).toBeInTheDocument();
       act(() => route.onChange?.(25));
-      expect(screen.queryByRole("region", { name: "Cómo moverse" })).not.toBeInTheDocument();
+      await advance(1_000);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     // On desktop the detail floats at the top right and the help stays at the bottom left
-    it("stays beside the creature detail on desktop", async () => {
+    it("stays beside the creature detail on a roomy desktop", async () => {
       wide = true;
+      matching.add("(min-width: 1120px)");
       await readyStage();
       act(() => route.onChange?.(25));
       expect(intro()).not.toBeNull();
     });
 
-    it("reopens the help with the detected input first", async () => {
+    // Between 768 and 1120 px the help beside the sweep panel would run under the detail
+    it("waits on a narrow desktop while the creature detail is open, and closes its open panel", async () => {
+      wide = true;
+      await readyStage();
+      act(() => route.onChange?.(25));
+      expect(intro()).toBeNull();
+      act(() => route.onChange?.(null));
+      expect(intro()).not.toBeNull();
+      click("Entendido");
+      click("Cómo moverse");
+      act(() => route.onChange?.(25));
+      expect(screen.queryByRole("region", { name: "Cómo moverse" })).not.toBeInTheDocument();
+    });
+
+    it.each([
+      { device: "phone", role: "dialog" },
+      { device: "desktop", role: "region" },
+    ] as const)("reopens the help with the detected input first on a $device", async ({ device, role }) => {
+      wide = device === "desktop";
       await readyStage();
       act(() => fake.onInputDetected?.("mouse"));
       click("Cómo moverse");
+      await flush();
       expect(intro()).toBeNull();
-      const panel = screen.getByRole("region", { name: "Cómo moverse" });
+      const panel = screen.getByRole(role, { name: "Cómo moverse" });
       expect(within(panel).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
         MOUSE,
         TOUCHPAD,
@@ -759,6 +872,81 @@ describe("MapStage", () => {
     });
   });
 
+
+  describe("control column on a phone", () => {
+    const COLUMN = ["Acercar", "Alejar", "Cómo moverse", "Ver Argentina", "Hábitats"];
+
+    async function readyStage() {
+      localStorage.setItem(MAP_HELP_SEEN_KEY, "1");
+      await renderStage();
+      report("ready");
+    }
+
+    function column() {
+      return screen.getByRole("navigation", { name: "Controles del mapa" });
+    }
+
+    it("stacks zoom, help, the country and the habitats, all waiting for the map", async () => {
+      await renderStage();
+      const buttons = within(column()).getAllByRole("button");
+      expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual(COLUMN);
+      for (const button of buttons) expect(button).toBeDisabled();
+      report("ready");
+      for (const button of within(column()).getAllByRole("button")) expect(button).toBeEnabled();
+    });
+
+    it("zoom and the country act on the map at once", async () => {
+      await readyStage();
+      click("Acercar");
+      click("Alejar");
+      click("Ver Argentina");
+      expect(fake.handle.zoomIn).toHaveBeenCalledOnce();
+      expect(fake.handle.zoomOut).toHaveBeenCalledOnce();
+      expect(fake.handle.resetView).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("Hábitats opens a sheet with the legend, and closing it gives the focus back", async () => {
+      await readyStage();
+      const layers = screen.getByRole("button", { name: "Hábitats" });
+      fireEvent.click(layers);
+      await flush();
+      const sheet = screen.getByRole("dialog", { name: "Hábitats" });
+      expect(layers).toHaveAttribute("aria-expanded", "true");
+      expect(within(sheet).getAllByRole("listitem")).toHaveLength(6);
+      fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
+      await advance(1_000);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(layers).toHaveFocus();
+    });
+
+    it("the first visit's help sits beside the info mark, inside the column", async () => {
+      localStorage.clear();
+      await renderStage();
+      report("ready");
+      expect(within(column()).getByRole("status")).toHaveTextContent("Cómo moverse");
+    });
+
+    it("steps aside while the creature detail is open, and comes back after", async () => {
+      await readyStage();
+      act(() => route.onChange?.(25));
+      expect(screen.queryByRole("navigation", { name: "Controles del mapa" })).not.toBeInTheDocument();
+      act(() => route.onChange?.(null));
+      expect(column()).toBeInTheDocument();
+    });
+
+    it("a viewport that widens drops the open sheet for the desktop row", async () => {
+      await readyStage();
+      click("Hábitats");
+      await flush();
+      expect(screen.getByRole("dialog", { name: "Hábitats" })).toBeInTheDocument();
+      wide = true;
+      act(() => mediaListeners.forEach((listener) => listener()));
+      await advance(1_000);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Ver Argentina" })).toHaveTextContent("Ver Argentina");
+    });
+  });
 
   describe("entry flight", () => {
     const SKIP = "Saltar el vuelo de entrada";
@@ -829,7 +1017,7 @@ describe("MapStage", () => {
       });
       await renderStage();
       expect(fake.active).toBe(0);
-      act(() => click(SKIP));
+      await act(async () => click(SKIP));
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
       expect(region()).toHaveFocus();
       fake.chunk = null;
@@ -911,6 +1099,49 @@ describe("MapStage", () => {
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
       click("Reintentar");
       await flush();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    it("does not fly again when the connection comes back after the flight and remounts a failed map", async () => {
+      await renderStage();
+      report("ready");
+      endFlight();
+      report("error");
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await flush();
+      expect(fake.mounts).toBe(2);
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    it("does not resume the flight when the connection comes back mid-flight and remounts a failed map", async () => {
+      await renderStage();
+      report("error");
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await flush();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+    });
+
+    it("a map chunk that fails during the flight leaves only the error, and retry lands without flying", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      fake.chunkFailures = 1;
+      await renderStage();
+      expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar el mapa.");
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      expect(fake.active).toBe(0);
+      click("Reintentar");
+      await flush();
+      expect(fake.active).toBe(1);
       expect(fake.intro).toBe(false);
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
       report("ready");
@@ -1049,6 +1280,21 @@ describe("MapStage", () => {
       fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
       expect(fake.draft).toBeNull();
       expect(screen.getByRole("button", { name: TRACE })).toHaveFocus();
+    });
+
+    it("on phones the control column keeps moving the map while drawing", async () => {
+      await renderStage();
+      report("ready");
+      await startDrawing();
+      const column = screen.getByRole("navigation", { name: "Controles del mapa" });
+      expect(within(column).queryByRole("button", { name: TRACE })).not.toBeInTheDocument();
+      click("Acercar");
+      click("Alejar");
+      click("Ver Argentina");
+      expect(fake.handle.zoomIn).toHaveBeenCalledOnce();
+      expect(fake.handle.zoomOut).toHaveBeenCalledOnce();
+      expect(fake.handle.resetView).toHaveBeenCalledOnce();
+      expect(screen.getByRole("region", { name: "Trazando cerca" })).toBeInTheDocument();
     });
 
     it("a map that fails mid-drawing takes the mode with it", async () => {

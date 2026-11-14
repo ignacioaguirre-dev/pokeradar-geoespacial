@@ -103,6 +103,14 @@ export function useCreature(id: number | null): CreatureState {
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);
 
+  // Only a settled network-type failure listens, so a request in flight is never doubled
+  const unavailable = settled?.key === key && settled.error === "unavailable";
+  useEffect(() => {
+    if (!unavailable) return;
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [unavailable, retry]);
+
   if (id === null) return { state: "idle", retry };
   if (cached) return { state: "ready", data: cached, retry };
   // A result from another id or an earlier attempt is stale: show loading until this one settles

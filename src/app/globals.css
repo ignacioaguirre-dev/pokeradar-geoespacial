@@ -28,6 +28,8 @@
   --color-biome-sea: #2e5e78; /* Argentine Sea off Península Valdés */
   /* Fence outline and sweep rings, map only: warmer than the text salt and paler than the trace ochre */
   --color-sweep: #e6d3b0; /* Salinas Grandes salt crust at dusk */
+  /* The flag on the Ver Argentina control, interface only */
+  --color-flag-sky: #74acdf; /* celeste of the Argentine flag */
 
   --radius-control: 2px;
   --radius-panel: 4px;
@@ -118,6 +120,14 @@
   }
 }
 
+/* A short drop from under the brand, so a change of connection reads as an event; skipped under reduced motion */
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
 /* MapLibre's container clips overflow, so the default ring around the canvas is cut off; inset keeps it inside */
 @layer components {
   .maplibregl-canvas:focus-visible {
@@ -198,5 +208,14 @@
 @media (prefers-reduced-motion: reduce) {
   .sweep-marker__body {
     animation: none;
+  }
+}
+
+/* Tailwind's preflight leaves buttons with the default cursor; anything that acts shows the hand */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href] {
+    cursor: pointer;
   }
 }
