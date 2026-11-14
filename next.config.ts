@@ -11,7 +11,9 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  // Sprites and cries: PokéAPI points at its GitHub-hosted assets
+  "img-src 'self' data: blob: https://raw.githubusercontent.com",
+  "media-src 'self' https://raw.githubusercontent.com",
   "font-src 'self'",
   "connect-src 'self' https://tiles.openfreemap.org",
   "worker-src 'self'",

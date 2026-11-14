@@ -80,3 +80,21 @@ export async function measureInitialJs(
   }
   return { gzipBytes, scripts };
 }
+
+const SPRITES = join(__dirname, "fixtures", "sprites");
+// The CORS headers GitHub's raw host really sends
+const RAW_GITHUB = { "access-control-allow-origin": "*", "cross-origin-resource-policy": "cross-origin" };
+
+// PokéAPI's sprites and cries live on GitHub; a tiny fixture keeps the run offline and deterministic
+export async function mockPokeApiAssets(page: Page): Promise<void> {
+  await page.route("https://raw.githubusercontent.com/**", (route: Route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(".gif")) {
+      return route.fulfill({ path: join(SPRITES, "animated.gif"), contentType: "image/gif", headers: RAW_GITHUB });
+    }
+    if (path.endsWith(".png")) {
+      return route.fulfill({ path: join(SPRITES, "still.png"), contentType: "image/png", headers: RAW_GITHUB });
+    }
+    return route.fulfill({ status: 404, headers: RAW_GITHUB });
+  });
+}

@@ -9,6 +9,7 @@ const criticalOnly = full
   : { grep: /@critical/, grepInvert: /@visual/ };
 // Own port so a running `pnpm dev` on 3000 is never reused
 const port = 3100;
+const pokeApiPort = 3101;
 
 export default defineConfig({
   testDir: "e2e",
@@ -25,13 +26,24 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${port}`,
   },
-  webServer: {
-    // CI builds once in its own step
-    command: isCI ? `pnpm start -p ${port}` : `pnpm build && pnpm start -p ${port}`,
-    port,
-    reuseExistingServer: !isCI,
-    timeout: 300_000,
-  },
+  webServer: [
+    {
+      // PokéAPI fixtures: no test reaches the real service
+      command: "node e2e/fixtures/pokeapi-server.mjs",
+      url: `http://localhost:${pokeApiPort}/health`,
+      env: { PORT: String(pokeApiPort) },
+      reuseExistingServer: !isCI,
+    },
+    {
+      // CI builds once in its own step
+      command: isCI ? `pnpm start -p ${port}` : `pnpm build && pnpm start -p ${port}`,
+      port,
+      // Read at request time, so the same build serves real data elsewhere
+      env: { POKEAPI_BASE_URL: `http://localhost:${pokeApiPort}` },
+      reuseExistingServer: !isCI,
+      timeout: 300_000,
+    },
+  ],
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "firefox", ...criticalOnly, use: { ...devices["Desktop Firefox"] } },
