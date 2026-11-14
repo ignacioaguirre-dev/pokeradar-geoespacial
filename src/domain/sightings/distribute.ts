@@ -84,7 +84,7 @@ export function distribute(
   const sitesBy = Map.groupBy(sites, (site) => site.habitat);
 
   const sightings: Sighting[] = [];
-  for (const { id, habitat } of [...species].sort((a, b) => a.id - b.id)) {
+  for (const { id, habitat } of species.toSorted((a, b) => a.id - b.id)) {
     const rng = createRng(id);
     const polygons = polygonsBy.get(habitat);
     const habitatSites = sitesBy.get(habitat);
