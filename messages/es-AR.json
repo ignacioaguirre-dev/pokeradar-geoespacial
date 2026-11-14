@@ -18,7 +18,6 @@
     "slow": "El mapa está tardando más de lo normal.",
     "errorTitle": "No se pudo cargar el mapa.",
     "errorBody": "Revisá tu conexión y probá de nuevo.",
-    "offlineTitle": "Sin conexión.",
     "offlineBody": "El mapa necesita internet para cargarse.",
     "retry": "Reintentar",
     "unsupportedTitle": "Este navegador no puede mostrar el mapa.",
@@ -30,6 +29,11 @@
   },
   "Button": {
     "loading": "Cargando…"
+  },
+  "Connection": {
+    "offlineTitle": "Sin conexión.",
+    "offlineBody": "Lo que ya está cargado sigue disponible; el resto vuelve cuando se recupere.",
+    "recovered": "Conexión recuperada."
   },
   "Sites": {
     "buenos-aires": "Buenos Aires",

@@ -1,10 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import dynamic from "next/dynamic";
-import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { useOnline } from "@/hooks/use-online";
 import { useResolved } from "@/hooks/use-resolved";
 import type { CompactSighting } from "@/domain/sightings/compact";
 import { CREATURE_PARAM, parseCreatureId } from "@/features/creature/history";
@@ -13,13 +13,11 @@ import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute } from "./creature-route";
 import { HabitatLegend } from "./habitat-legend";
 import { introPlayed } from "./intro-played";
+import { LoadBoundary, useLazyWhenOnline } from "./load-when-online";
 
-// The notices come from MapStage, so the chunk shows nothing while it downloads.
+// The notices come from MapStage, so the chunk shows nothing while it downloads (or fails).
 // HabitatMap carries the habitat data, so it rides in this deferred chunk instead of the initial JS
-const BaseMap = dynamic(() => import("./habitat-map").then((m) => m.HabitatMap), {
-  ssr: false,
-  loading: () => null,
-});
+const loadMap = () => import("./habitat-map").then((m) => m.HabitatMap);
 
 const SLOW_MS = 8_000;
 const TIMEOUT_MS = 30_000;
@@ -68,23 +66,6 @@ function useWideViewport(): boolean {
   );
 }
 
-function subscribeOnline(onChange: () => void) {
-  window.addEventListener("online", onChange);
-  window.addEventListener("offline", onChange);
-  return () => {
-    window.removeEventListener("online", onChange);
-    window.removeEventListener("offline", onChange);
-  };
-}
-
-function useOnline(): boolean {
-  return useSyncExternalStore(
-    subscribeOnline,
-    () => navigator.onLine,
-    () => true,
-  );
-}
-
 // A shared creature link lands on its detail, whose desktop panel would also cover the skip button
 function shouldFly(): boolean {
   if (introPlayed.current || window.matchMedia(REDUCED_MOTION_QUERY).matches) return false;
@@ -104,8 +85,10 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
   const supported = useWebGL2Support();
   const wide = useWideViewport();
   const online = useOnline();
+  const [BaseMap, reloadMap] = useLazyWhenOnline(loadMap);
   const mapRef = useRef<MapHandle>(null);
   const regionRef = useRef<HTMLElement>(null);
+  const noticeRef = useRef<HTMLDivElement>(null);
   const skipRef = useRef<HTMLDivElement>(null);
   const [key, setKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -113,7 +96,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
   // `mounted`, which is null during hydration, so both renders agree
   const [intro] = useState(() => typeof window !== "undefined" && shouldFly());
   const [introDone, setIntroDone] = useState(false);
-  // Only the first map flies: a retry already lost the moment
+  // Only the first map flies: a retry or a reconnect remount already lost the moment
   const flies = intro && key === 0;
 
   const mounted = supported === true;
@@ -147,9 +130,27 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
   function retry() {
     // The focused retry button unmounts with the error; the region outlives every state
     regionRef.current?.focus({ preventScroll: true });
+    restart();
+  }
+
+  function restart() {
+    reloadMap();
     setKey((k) => k + 1);
     setPhase("loading");
   }
+
+  // Reconnecting remounts a failed map; focus moves only if it sat on the retry that goes away with the error
+  const failed = phase === "error" || phase === "offline";
+  const reconnect = useEffectEvent(() => {
+    if (noticeRef.current?.contains(document.activeElement)) regionRef.current?.focus({ preventScroll: true });
+    restart();
+  });
+  useEffect(() => {
+    if (!failed) return;
+    const onOnline = () => reconnect();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [failed]);
 
   const visible =
     supported === null
@@ -196,7 +197,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
       <Notice
         key="offline"
         variant="error"
-        title={t("offlineTitle")}
+        title={t("errorTitle")}
         action={{ label: t("retry"), onActivate: retry }}
       >
         {t("offlineBody")}
@@ -231,19 +232,24 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
         className="pointer-events-auto absolute inset-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
       >
         {mounted ? (
-          <BaseMap
-            key={key}
-            ref={mapRef}
-            sightings={sightings}
-            labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
-            padding={wide ? PADDING_WIDE : PADDING_NARROW}
-            intro={flies && !introDone}
-            onIntroEnd={endIntro}
-            onStatusChange={handleStatus}
-          />
+          <LoadBoundary key={key} fallback={null} onError={() => setPhase(failure())}>
+            <BaseMap
+              ref={mapRef}
+              sightings={sightings}
+              labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
+              padding={wide ? PADDING_WIDE : PADDING_NARROW}
+              intro={flies && !introDone}
+              onIntroEnd={endIntro}
+              onStatusChange={handleStatus}
+            />
+          </LoadBoundary>
         ) : null}
       </section>
-      {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
+      {notice ? (
+        <div ref={noticeRef} className="pointer-events-auto relative w-full max-w-md self-center">
+          {notice}
+        </div>
+      ) : null}
       {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
       {supported === false ? null : (
         // Legend left, controls right: the same order on screen and for the keyboard.
