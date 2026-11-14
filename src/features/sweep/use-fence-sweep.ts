@@ -18,8 +18,12 @@ export function displayName(slug: string): string {
 // The chosen fence and what it detects. Runs on the client over the sightings the page already sent.
 // payload: undefined while it streams, null when the catalog failed
 export function useFenceSweep<F extends Fence>(fences: readonly F[], payload: SightingsPayload | null | undefined) {
-  const [fenceId, setFenceId] = useState<string | null>(null);
-  const fence = fences.find((f) => f.id === fenceId) ?? null;
+  // The run count makes the active fence, chosen again, a new value: the map replays its event
+  const [chosen, setChosen] = useState<{ id: string; run: number } | null>(null);
+  const fence = useMemo(() => {
+    const found = fences.find((f) => f.id === chosen?.id);
+    return found && chosen ? { ...found, run: chosen.run } : null;
+  }, [fences, chosen]);
 
   // Decoded once per payload, not per fence
   const sightings = useMemo(() => (payload ? fromCompact(payload.sightings) : null), [payload]);
@@ -41,7 +45,7 @@ export function useFenceSweep<F extends Fence>(fences: readonly F[], payload: Si
   }, [fence, payload, sightings]);
 
   const choose = (id: string) => {
-    if (fences.some((f) => f.id === id)) setFenceId(id);
+    if (fences.some((f) => f.id === id)) setChosen((last) => ({ id, run: (last?.run ?? 0) + 1 }));
   };
 
   return { fence, detection, choose };

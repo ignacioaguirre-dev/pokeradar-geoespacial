@@ -22,6 +22,7 @@ const fake = vi.hoisted(() => ({
         focus: number | null;
         onSelect(id: number): void;
         fencePadding(): Padding;
+        detailPadding(): Padding;
       }
     | undefined,
   handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {} },
@@ -399,11 +400,23 @@ describe("MapStage", () => {
       expect(fake.sweep?.fencePadding()).toEqual({ top: 96, right: 120, bottom: 72, left: 352 });
     });
 
+    // At 768–1100 px both side panels would leave the fence a sliver: the creature gets the room instead
+    it("with the detail open on a narrow desktop, the sweep panel side gives way", async () => {
+      wide = true;
+      window.innerWidth = 900;
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      const padding = fake.sweep!.detailPadding();
+      expect(900 - padding.left - padding.right).toBeGreaterThanOrEqual(320);
+      window.innerWidth = 1280;
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 96, right: 396, bottom: 72, left: 352 });
+    });
+
     it("an empty fence says so", async () => {
       render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
       await flush();
       click("Mar Argentino");
-      expect(screen.getByText("No hay criaturas en esta cerca. Probá con otra.")).toBeInTheDocument();
+      expect(screen.getByText(/no hay criaturas en esta cerca. Probá con otra./)).toBeInTheDocument();
       expect(fake.sweep?.creatures).toEqual([]);
     });
 

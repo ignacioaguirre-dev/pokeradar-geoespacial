@@ -136,7 +136,7 @@ export function BaseMap({ habitats, sightings, labels, padding, sweep, onStatusC
 
   useEffect(() => syncSightings(), [sightings]);
 
-  useSweep(loadedMap, sweep);
+  useSweep(loadedMap, sweep, padding);
 
   const { top, right, bottom, left } = padding;
   useEffect(() => {
@@ -154,11 +154,16 @@ export function BaseMap({ habitats, sightings, labels, padding, sweep, onStatusC
     return {
       zoomIn: () => zoomBy(1),
       zoomOut: () => zoomBy(-1),
+      // Absolute: a sweep or a creature may have left its own padding on the map
       resetView: () => {
-        mapRef.current?.fitBounds(ARGENTINA_BOUNDS, { animate: !prefersReducedMotion() });
+        mapRef.current?.fitBounds(ARGENTINA_BOUNDS, {
+          padding: { top, right, bottom, left },
+          absolutePadding: true,
+          animate: !prefersReducedMotion(),
+        });
       },
     };
-  }, []);
+  }, [top, right, bottom, left]);
 
   return (
     <>

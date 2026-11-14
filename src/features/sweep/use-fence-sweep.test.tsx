@@ -95,4 +95,14 @@ describe("useFenceSweep", () => {
     act(() => result.current.choose("atlantis"));
     expect(result.current.fence).toBeNull();
   });
+
+  // A pressed fence pressed again plays its event once more instead of doing nothing
+  it("choosing the active fence again replays it", () => {
+    const { result } = renderHook(() => useFenceSweep(FENCES, PAYLOAD));
+    act(() => result.current.choose("box"));
+    const first = result.current.fence;
+    act(() => result.current.choose("box"));
+    expect(result.current.fence).not.toBe(first);
+    expect(result.current.fence?.id).toBe("box");
+  });
 });

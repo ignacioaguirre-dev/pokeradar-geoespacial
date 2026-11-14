@@ -47,6 +47,8 @@ type Settled = Result & { key: string };
 
 // Prefetches in flight: opening the creature meanwhile waits for them instead of asking twice
 const inflight = new Map<number, Promise<Result>>();
+// Opened creatures still loading: their own abortable request already fills the cache
+const opening = new Set<number>();
 
 // Never rejects: every failure is a result, and a good answer lands in the cache
 async function request(id: number, signal?: AbortSignal): Promise<Result> {
@@ -66,7 +68,7 @@ async function request(id: number, signal?: AbortSignal): Promise<Result> {
 
 // On intent (hover, focus) before the tap. Not abortable: the answer is worth keeping either way
 export function prefetchCreature(id: number): void {
-  if (cache.has(id) || inflight.has(id)) return;
+  if (cache.has(id) || inflight.has(id) || opening.has(id)) return;
   const pending = request(id).finally(() => inflight.delete(id));
   inflight.set(id, pending);
 }
@@ -87,10 +89,16 @@ export function useCreature(id: number | null): CreatureState {
   useEffect(() => {
     if (id === null || cache.has(id)) return;
     const controller = new AbortController();
-    (inflight.get(id) ?? request(id, controller.signal)).then((result) => {
+    const shared = inflight.get(id);
+    if (!shared) opening.add(id);
+    (shared ?? request(id, controller.signal)).then((result) => {
+      opening.delete(id);
       if (!controller.signal.aborted) setSettled({ key, ...result });
     });
-    return () => controller.abort();
+    return () => {
+      opening.delete(id);
+      controller.abort();
+    };
   }, [id, key]);
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);

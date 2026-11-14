@@ -29,25 +29,25 @@ describe("SweepReading", () => {
   it("announces how many creatures it detected and the weak signals left", () => {
     renderReading(READY);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "2 criaturas detectadas y 7 señales débiles: achicá la cerca para resolverlas.",
+      "Esteros del Iberá: 2 criaturas detectadas y 7 señales débiles: achicá la cerca para resolverlas.",
     );
   });
 
   it("leaves the weak signals out when there are none", () => {
     renderReading({ ...READY, weakSignals: 0 });
-    expect(screen.getByRole("status")).toHaveTextContent(/^2 criaturas detectadas$/);
+    expect(screen.getByRole("status")).toHaveTextContent(/^Esteros del Iberá: 2 criaturas detectadas$/);
   });
 
   it("uses the singular for one", () => {
     renderReading({ status: "ready", weakSignals: 1, traced: [READY.traced[0]] });
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 criatura detectada y 1 señal débil: achicá la cerca para resolverlas.",
+      "Esteros del Iberá: 1 criatura detectada y 1 señal débil: achicá la cerca para resolverlas.",
     );
   });
 
   it("an empty fence suggests trying another", () => {
     renderReading({ status: "ready", traced: [], weakSignals: 0 });
-    expect(screen.getByRole("status")).toHaveTextContent("No hay criaturas en esta cerca. Probá con otra.");
+    expect(screen.getByRole("status")).toHaveTextContent("Esteros del Iberá: no hay criaturas en esta cerca. Probá con otra.");
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 

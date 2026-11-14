@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { preload } from "react-dom";
 import { FencePicker } from "@/components/sweep/fence-picker";
 import { SweepReading } from "@/components/sweep/sweep-reading";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,6 @@ import { Notice } from "@/components/ui/notice";
 import { FENCES } from "@/data/fences";
 import { spriteUrl } from "@/features/catalog/sprite";
 import { openCreature } from "@/features/creature/history";
-import { prefetchCreature } from "@/features/creature/use-creature";
 import type { SightingsPayload } from "@/features/sweep/types";
 import { useFenceSweep } from "@/features/sweep/use-fence-sweep";
 import { useResolved } from "@/hooks/use-resolved";
@@ -45,8 +45,15 @@ const DETAIL_RIGHT = 396;
 const SHEET_SHARE = 0.6;
 const ATTRIBUTION_HEIGHT = 88;
 
+// Below this, the sweep panel and the detail would leave the creature a sliver between them
+const MIN_VIEW_WIDTH = 320;
+
 function detailPadding(wide: boolean) {
-  if (wide) return { ...PADDING_WIDE, right: DETAIL_RIGHT };
+  if (wide) {
+    const roomy = window.innerWidth - PADDING_WIDE.left - DETAIL_RIGHT >= MIN_VIEW_WIDTH;
+    // Narrow desktops: the creature may sit under the sweep panel rather than vanish between the two
+    return { ...PADDING_WIDE, right: DETAIL_RIGHT, left: roomy ? PADDING_WIDE.left : PADDING_NARROW.left };
+  }
   return { ...PADDING_NARROW, bottom: Math.round(window.innerHeight * SHEET_SHARE) + ATTRIBUTION_HEIGHT };
 }
 
@@ -55,10 +62,11 @@ function fencePadding(wide: boolean, detailOpen: boolean) {
   return wide ? PADDING_WIDE : FENCE_PADDING_NARROW;
 }
 
-// Hover or focus on a creature: fetch its detail and the panel's code before the tap
+// Hover or focus on a creature: fetch its detail and the panel's code before the tap.
+// Imported on demand so the detail's fetching code stays out of the initial JS; one module, one cache
 function prepareCreature(id: number) {
   preloadCreaturePanel();
-  prefetchCreature(id);
+  void import("@/features/creature/use-creature").then((m) => m.prefetchCreature(id));
 }
 
 // Touch has no hover: once the map is up and the browser idle, the panel's code comes anyway
@@ -161,6 +169,11 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
         : [],
     [detection, tSweep],
   );
+
+  // Sprites start loading as soon as the creatures are known, not when their markers land a second later
+  useEffect(() => {
+    for (const { sprite } of creatures) preload(sprite, { as: "image", crossOrigin: "anonymous" });
+  }, [creatures]);
 
   const mounted = supported === true;
   const waiting = phase === "loading" || phase === "slow";

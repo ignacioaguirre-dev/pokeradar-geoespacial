@@ -59,9 +59,9 @@
   "Sweep": {
     "fences": "Cercas",
     "hint": "Elegí una cerca para barrerla.",
-    "detected": "<n>{count}</n> {count, plural, one {criatura detectada} other {criaturas detectadas}}",
+    "detected": "{fence}: <n>{count}</n> {count, plural, one {criatura detectada} other {criaturas detectadas}}",
     "weak": " y <n>{count}</n> {count, plural, one {señal débil} other {señales débiles}}: achicá la cerca para resolverlas.",
-    "empty": "No hay criaturas en esta cerca. Probá con otra.",
+    "empty": "{fence}: no hay criaturas en esta cerca. Probá con otra.",
     "loading": "Buscando criaturas…",
     "unavailableTitle": "No pudimos cargar las criaturas.",
     "unavailableBody": "Probá de nuevo en unos segundos.",

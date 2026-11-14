@@ -1,7 +1,7 @@
 "use client";
 
 import type { Map as MapLibreMap, PaddingOptions } from "maplibre-gl";
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { parseDuration } from "@/hooks/use-duration-token";
 import { readMapColors } from "./colors";
 import type { SweepCreature } from "./sweep-markers";
@@ -43,13 +43,33 @@ function readTiming() {
 const NO_CREATURES: readonly SweepCreature[] = [];
 const NO_PADDING: PaddingOptions = { top: 0, right: 0, bottom: 0, left: 0 };
 
-// Draws the sweep on a loaded map; null until the style has loaded, as the sweep sources live in it
-export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined): void {
+// Draws the sweep on a loaded map; null until the style has loaded, as the sweep sources live in it.
+// basePadding is the map's own, which the fence and creature cameras replace while they last
+export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined, basePadding: PaddingOptions): void {
   const fence = sweep?.fence ?? null;
   const creatures = sweep?.creatures ?? NO_CREATURES;
   const focus = sweep?.focus ?? null;
+  // The same detection may arrive as a new list (a re-render upstream): only other creatures replay the sweep
+  const creatureIds = creatures.map((c) => c.id).join();
 
-  const select = useEffectEvent((id: number) => sweep?.onSelect(id));
+  const fly = useEffectEvent((map: MapLibreMap, id: number) => {
+    const creature = creatures.find((c) => c.id === id);
+    if (!creature || !sweep) return;
+    const camera = {
+      center: [creature.point[0], creature.point[1]] as [number, number],
+      zoom: Math.max(map.getZoom(), CREATURE_ZOOM),
+      padding: sweep.detailPadding(),
+    };
+    if (reducedMotion()) map.jumpTo(camera);
+    else map.flyTo(camera);
+  });
+
+  // The marker of the creature already open: the URL does not change, so fly from here
+  const select = useEffectEvent((id: number) => {
+    if (map && id === focus) fly(map, id);
+    sweep?.onSelect(id);
+  });
+
   const intent = useEffectEvent((id: number) => sweep?.onIntent(id));
 
   // A fence only comes with the sweep props, so they are there whenever this runs
@@ -73,21 +93,24 @@ export function useSweep(map: MapLibreMap | null, sweep: SweepProps | undefined)
       return;
     }
     return start(map, fence);
-  }, [map, fence, creatures]);
+  }, [map, fence, creatureIds]);
 
-  const fly = useEffectEvent((map: MapLibreMap, id: number) => {
-    const creature = creatures.find((c) => c.id === id);
-    if (!creature || !sweep) return;
-    const camera = {
-      center: [creature.point[0], creature.point[1]] as [number, number],
-      zoom: Math.max(map.getZoom(), CREATURE_ZOOM),
-      padding: sweep.detailPadding(),
-    };
+  // flyTo leaves the detail's padding on the map; once the detail closes, the map gets its own back
+  const restore = useEffectEvent((map: MapLibreMap) => {
+    const camera = { padding: basePadding };
     if (reducedMotion()) map.jumpTo(camera);
-    else map.flyTo(camera);
+    else map.easeTo(camera);
   });
 
+  const focused = useRef(false);
   useEffect(() => {
-    if (map && focus !== null) fly(map, focus);
+    if (!map) return;
+    if (focus !== null) {
+      focused.current = true;
+      fly(map, focus);
+    } else if (focused.current) {
+      focused.current = false;
+      restore(map);
+    }
   }, [map, focus]);
 }

@@ -192,4 +192,11 @@ describe("prefetchCreature", () => {
     await waitFor(() => expect(result.current.state).toBe("ready"));
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("a creature already opening is not asked for again on hover", () => {
+    fetchMock.mockReturnValue(new Promise<Response>(() => {}));
+    renderHook(() => useCreature(44));
+    prefetchCreature(44);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -191,6 +191,9 @@ describe("sweep layers", () => {
       expect(ring.paint?.["circle-stroke-color"], id).toBe("marker-sweep");
       expect(ring.paint?.["circle-opacity"], id).toBe(0);
       expect(ring.paint?.["circle-stroke-opacity"], id).toBe(0);
+      // Driven frame by frame: MapLibre's default 300 ms easing would drag every step behind the curve
+      expect(ring.paint?.["circle-radius-transition"], id).toEqual({ duration: 0, delay: 0 });
+      expect(ring.paint?.["circle-stroke-opacity-transition"], id).toEqual({ duration: 0, delay: 0 });
     }
   });
 

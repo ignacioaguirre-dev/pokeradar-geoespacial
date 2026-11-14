@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseMap, type SweepProps } from "./base-map";
+import { createRef } from "react";
+import { BaseMap, type MapHandle, type SweepProps } from "./base-map";
 import type { HabitatCollection } from "./habitats";
 
 type Handler = (event?: unknown) => void;
@@ -42,6 +43,7 @@ const fake = vi.hoisted(() => {
     fitBounds = vi.fn();
     flyTo = vi.fn();
     jumpTo = vi.fn();
+    easeTo = vi.fn();
     touchZoomRotate = { disableRotation: vi.fn() };
 
     constructor(public options: { container: HTMLElement; style: { sources: Record<string, unknown> } }) {
@@ -400,5 +402,44 @@ describe("BaseMap sweep", () => {
     emit("load");
     rerender(sweep({ focus: 150 }));
     expect(lastMap().flyTo).not.toHaveBeenCalled();
+  });
+
+  // fitBounds and flyTo leave their padding on the map: closing the detail must give the base one back
+  it("closing the detail eases back to the base padding", () => {
+    const { rerender } = renderMap(sweep());
+    emit("load");
+    rerender(sweep({ focus: 7 }));
+    expect(lastMap().easeTo).not.toHaveBeenCalled();
+    rerender(sweep({ focus: null }));
+    expect(lastMap().easeTo).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ padding }));
+  });
+
+  it("Ver Argentina frames the country with the base padding, whatever a sweep left", () => {
+    const ref = createRef<MapHandle>();
+    render(<BaseMap ref={ref} habitats={habitats} labels={labels} padding={padding} onStatusChange={vi.fn()} />);
+    emit("load");
+    act(() => ref.current?.resetView());
+    expect(lastMap().fitBounds).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ padding, absolutePadding: true }),
+    );
+  });
+
+  it("tapping the marker of the creature already open flies back to it", () => {
+    const props = sweep({ focus: 25 });
+    renderMap(props);
+    emit("load");
+    emit("moveend");
+    playFrames();
+    lastMap().flyTo.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Ver Pikachu" }));
+    expect(lastMap().flyTo).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ center: CREATURES[0].point }));
+  });
+
+  it("the same creatures in a new list do not replay the sweep", () => {
+    const { rerender } = renderMap(sweep());
+    emit("load");
+    rerender(sweep({ creatures: CREATURES.map((c) => ({ ...c })) }));
+    expect(lastMap().fitBounds).toHaveBeenCalledOnce();
   });
 });

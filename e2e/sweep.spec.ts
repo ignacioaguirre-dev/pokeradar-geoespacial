@@ -12,8 +12,8 @@ const t = messages.Sweep;
 const IBERA = messages.Fences.ibera;
 const SEA = messages.Fences.sea;
 // Pinned by the real-data snapshot of src/features/sightings/queries.test.ts
-const IBERA_READING = "12 criaturas detectadas y 36 señales débiles: achicá la cerca para resolverlas.";
-const SEA_READING = "12 criaturas detectadas y 7 señales débiles: achicá la cerca para resolverlas.";
+const IBERA_READING = "Esteros del Iberá: 12 criaturas detectadas y 36 señales débiles: achicá la cerca para resolverlas.";
+const SEA_READING = "Mar Argentino: 12 criaturas detectadas y 7 señales débiles: achicá la cerca para resolverlas.";
 const VIEW = /^Ver /;
 
 // The markers live inside the map region; the list sits in the sweep panel
@@ -104,6 +104,17 @@ test.describe("with WebGL2", () => {
       reached.push(label);
     }
     expect(reached.filter((label) => VIEW.test(label))).toEqual(await labels(list(page, IBERA)));
+  });
+
+  test("the active fence pressed again replays its sweep", async ({ page }) => {
+    await page.goto("/");
+    await waitForMapReady(page);
+    await choose(page, IBERA);
+    await expect(markers(page)).toHaveCount(12, { timeout: 15_000 });
+    await choose(page, IBERA);
+    // The replay takes the markers away and brings them back once the traces land again
+    await expect(markers(page)).toHaveCount(0);
+    await expect(markers(page)).toHaveCount(12, { timeout: 15_000 });
   });
 
   test("another fence takes the previous markers away", async ({ page }) => {

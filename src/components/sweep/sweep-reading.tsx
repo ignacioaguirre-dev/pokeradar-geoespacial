@@ -30,16 +30,18 @@ export function SweepReading({ detection, fenceName, onOpen, onIntent, onRetry }
   }
 
   const traced = detection.status === "ready" ? detection.traced : [];
+  // Named in the reading: two fences with the same counts would otherwise leave the live text unchanged
+  const fence = fenceName ?? "";
   const reading =
     detection.status === "idle"
       ? t("hint")
       : detection.status === "loading"
         ? t("loading")
         : traced.length === 0
-          ? t("empty")
+          ? t("empty", { fence })
           : (
               <>
-                {t.rich("detected", { count: traced.length, n: () => <Quantity value={traced.length} /> })}
+                {t.rich("detected", { fence, count: traced.length, n: () => <Quantity value={traced.length} /> })}
                 {detection.weakSignals > 0
                   ? t.rich("weak", {
                       count: detection.weakSignals,
@@ -62,7 +64,7 @@ export function SweepReading({ detection, fenceName, onOpen, onIntent, onRetry }
       </p>
       {traced.length > 0 ? (
         <ul
-          aria-label={t("list", { fence: fenceName ?? "" })}
+          aria-label={t("list", { fence })}
           className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0"
         >
           {traced.map(({ id, name }) => (

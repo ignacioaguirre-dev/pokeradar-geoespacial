@@ -62,12 +62,16 @@ export function runSweep(map: MapLibreMap, options: Options): () => void {
     })),
   });
 
+  // Values built here, not by users: skipping the style validation saves its cost on every frame
+  type Paint = Parameters<MapLibreMap["setPaintProperty"]>;
+  const set = (layer: string, property: Paint[1], value: Paint[2]) =>
+    map.setPaintProperty(layer, property, value, { validate: false });
   const paint = (frame: SweepFrame) => {
     frame.rings.forEach(({ scale, opacity }, i) => {
-      map.setPaintProperty(RING_LAYERS[i], "circle-radius", ringRadius(reach, scale));
-      map.setPaintProperty(RING_LAYERS[i], "circle-stroke-opacity", opacity);
+      set(RING_LAYERS[i], "circle-radius", ringRadius(reach, scale));
+      set(RING_LAYERS[i], "circle-stroke-opacity", opacity);
     });
-    map.setPaintProperty(SWEEP_TRACES, "line-gradient", traceGradient(traceColor, frame.trace));
+    set(SWEEP_TRACES, "line-gradient", traceGradient(traceColor, frame.trace));
   };
 
   let markers: ReturnType<typeof addMarkers> = [];

@@ -11,6 +11,9 @@ const FENCE_WIDTH = 2;
 const RING_WIDTH = 1.5;
 const TRACE_WIDTH = 2;
 
+// The rings are set every frame; MapLibre's default 300 ms easing would trail each step behind the curve
+const NO_TRANSITION = { duration: 0, delay: 0 };
+
 const EMPTY = { type: "FeatureCollection", features: [] } as const;
 
 // Empty until a fence is chosen; the sweep then only swaps data and paint
@@ -38,6 +41,8 @@ export function sweepLayers(colors: MapColors): LayerSpecification[] {
           "circle-stroke-width": RING_WIDTH,
           "circle-stroke-color": colors.sweep,
           "circle-stroke-opacity": 0,
+          "circle-radius-transition": NO_TRANSITION,
+          "circle-stroke-opacity-transition": NO_TRANSITION,
         },
       }),
     ),
