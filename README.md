@@ -102,7 +102,7 @@ Cada unidad pasa por una revisión independiente y por una prueba manual en el n
 - Un merge sin conflictos dejó dos claves `Habitats` en el JSON de textos (`JSON.parse` se queda con la última sin avisar).
   → Test de conformidad del catálogo de mensajes.
 - Un agente precargaba el panel de detalle para todos los visitantes.
-  → La revisión de buenas prácticas lo marcó; se carga al abrir una criatura.
+  → La revisión de buenas prácticas lo marcó; ahora baja recién cuando el mapa está listo y el navegador libre, o al abrir una criatura.
 - En celular, los controles, la ayuda y el panel del barrido se amontonaban y tapaban medio mapa.
   → Lo vio el autor al probar en su teléfono; se rediseñó con una columna flotante y hojas que suben desde abajo.
 - Dos E2E esperaban que el mapa se dibujara en un Firefox de CI sin WebGL2.
