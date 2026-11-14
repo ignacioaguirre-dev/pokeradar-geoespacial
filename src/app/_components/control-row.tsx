@@ -25,11 +25,11 @@ export function ControlRow({ disabled, onZoomIn, onZoomOut, onReset, helpLines, 
   const t = useTranslations("Map");
   return (
     <>
-      <div className="flex gap-2">
+      <div className="controls-in flex gap-2">
         <HabitatLegend disabled={disabled} />
         <MapHelpButton ref={helpRef} panelClassName={helpPanelClassName} lines={helpLines} disabled={disabled} />
       </div>
-      <nav aria-label={t("controls")} className="pointer-events-auto relative ml-auto flex shrink-0 gap-2">
+      <nav aria-label={t("controls")} className="controls-in pointer-events-auto relative ml-auto flex shrink-0 gap-2">
         <Button variant="secondary" aria-label={t("zoomIn")} disabled={disabled} onClick={onZoomIn} className="px-0!">
           {ICON_PLUS}
         </Button>
