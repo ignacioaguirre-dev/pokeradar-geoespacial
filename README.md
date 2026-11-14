@@ -4,8 +4,6 @@ Una expedición sobre el mapa de Argentina: las criaturas de PokéAPI aparecen e
 
 **App:** <!-- URL de producción -->
 
-> En esta versión el detalle de una criatura se abre por link, por ejemplo `/?creature=25`. Tocar un marcador en el mapa llega con el evento de barrido, la próxima unidad.
-
 ## 1. Concepto y narrativa
 
 PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, montaña, orilla del agua…). PokeRadar le da un lugar: cruza esos hábitats con las ecorregiones reales de Argentina (RESOLVE Ecoregions 2017) y reparte a las 386 criaturas de las generaciones I a III, las únicas con hábitat en PokéAPI, sobre el terreno que les corresponde. Pikachu, de bosque, aparece en las yungas o en la selva misionera; Geodude, de montaña, en la puna o en los Andes. El mapa no es un fondo con marcadores: es lo que explica por qué cada criatura está donde está.
@@ -13,14 +11,15 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 - **Argentina como protagonista.** El país llena la pantalla, pensado primero para el celular. El estilo del mapa es propio: sólo se rotulan provincias y ciudades argentinas, las Islas Malvinas llevan su rótulo y los hábitats tiñen el territorio con el color de su bioma.
 - **La llegada desde el espacio.** La primera visita empieza con el globo terráqueo y un vuelo hasta Argentina que pasa de la esfera al plano. Se corta con «Saltar» o con cualquier toque, rueda o tecla.
 - **Una paleta con origen.** Cada color sale de un lugar real: el fondo es la noche de la puna, el texto la sal de Salinas Grandes, el hábitat el ocre de la puna jujeña, la energía la flor del ceibo y la alerta el rojo de Talampaya. Cada hábitat toma el suyo de su bioma (yungas salteñas, esteros del Iberá, cerro de los Siete Colores…).
-- **Todo evento es el barrido de una cerca.** El descubrimiento se diseñó como un radar: se elige una zona (una cerca), se barre y aparece lo que hay adentro, con el porqué de cada hallazgo. La detección ya está como lógica pura testeada (hasta 12 criaturas trazadas por cerca, el resto como señales débiles); el barrido sobre el mapa es la próxima unidad.
+- **Todo evento es el barrido de una cerca.** El descubrimiento se diseñó como un radar: se elige una zona (una cerca), se barre y aparece lo que hay adentro, con el porqué de cada hallazgo. Hay ocho cercas sobre biomas argentinos (yungas, Iberá, pampa, puna, monte, Patagonia, mar, Misiones): al elegir una, los anillos salen desde su centro, cada criatura detectada deja su traza hasta su marcador (hasta 12; el resto queda como señales débiles) y una lectura dice cuántas hay y qué hacer para ver más. Tocar un marcador abre el detalle de esa criatura.
 
 **Qué aporta a la experiencia**
 
 - **La ubicación no es arbitraria:** el territorio está teñido por hábitat y la leyenda dice cuál es cuál. El reparto es determinista: cada criatura está en el mismo lugar para todos.
 - **Descubrir no es esperar:** el mapa no depende del catálogo (si PokéAPI falla, se sigue usando), el vuelo se corta en cualquier momento y los puntos aparecen apenas llegan.
-- **Primero el celular:** mapa a pantalla completa, detalle en una hoja inferior que no tapa el mapa (en escritorio, panel flotante), controles de 44 px y una ayuda con los gestos del dispositivo que se está usando.
+- **Primero el celular:** mapa a pantalla completa; los controles (acercar, alejar, ver Argentina, ayuda y hábitats) van en una columna flotante a la derecha, y la ayuda y la leyenda suben en una hoja desde abajo. El detalle es otra hoja inferior que no tapa el mapa (en escritorio, panel flotante). Todo con botones de 44 px y una ayuda con los gestos del dispositivo que se está usando.
 - **Para todos:** se usa con teclado (el foco entra al panel al abrirlo y vuelve al cerrarlo), y con movimiento reducido no hay vuelo y el sprite queda quieto.
+- **Sin romperse:** si se corta internet aparece un aviso y lo que falló se reintenta solo al volver; lo ya cargado sigue andando. Las direcciones inexistentes y los errores muestran páginas propias en castellano con una salida al mapa.
 
 ## 2. Arquitectura y stack
 
@@ -48,7 +47,9 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 **Componentes.**
 
 - `page.tsx` es un componente de servidor: arranca la carga de avistamientos y le pasa la promesa a `MapStage`, la isla de cliente.
-- `MapStage` maneja los estados del mapa (cargando, lento, error, sin conexión, sin WebGL2), la ayuda y el vuelo.
+- `MapStage` maneja los estados del mapa (cargando, lento, error, sin conexión, sin WebGL2), la ayuda, el vuelo y el barrido de la cerca elegida.
+- Un aviso global de conexión vive en el layout; los chunks diferidos esperan la red en vez de fallar, y si igual fallan muestran su propio error con reintento.
+- `not-found.tsx`, `error.tsx` y `global-error.tsx` reemplazan las pantallas de Next; el contenido del error se carga sólo si ocurre.
 - MapLibre y el panel de detalle se cargan en diferido, sólo en el navegador, y CI verifica que no entren al JS inicial.
 - El detalle se pide a un endpoint propio (`/api/creatures/[id]`) que recorta la respuesta de PokéAPI de cientos de KB a unos pocos.
 - La URL es el estado del panel: «atrás» lo cierra y un link lo abre.
@@ -98,6 +99,14 @@ Cada unidad pasa por una revisión independiente y por una prueba manual en el n
   → Guarda en el historial y test.
 - La rueda del mouse en macOS se leía como touchpad.
   → La revisión lo comparó con la regla de MapLibre; se corrigió con test.
+- Un merge sin conflictos dejó dos claves `Habitats` en el JSON de textos (`JSON.parse` se queda con la última sin avisar).
+  → Test de conformidad del catálogo de mensajes.
+- Un agente precargaba el panel de detalle para todos los visitantes.
+  → La revisión de buenas prácticas lo marcó; se carga al abrir una criatura.
+- En celular, los controles, la ayuda y el panel del barrido se amontonaban y tapaban medio mapa.
+  → Lo vio el autor al probar en su teléfono; se rediseñó con una columna flotante y hojas que suben desde abajo.
+- Dos E2E esperaban que el mapa se dibujara en un Firefox de CI sin WebGL2.
+  → Se reprodujo en Linux con Docker y los tests pasaron a afirmar la vuelta al mapa, no su dibujo.
 
 La IA aceleró el trabajo; la calidad salió de las revisiones independientes, de los tests que reproducen cada error y de las decisiones de producto tomadas por una persona.
 
@@ -105,8 +114,8 @@ La IA aceleró el trabajo; la calidad salió de las revisiones independientes, d
 
 **Producto**, en orden:
 
-1. Evento de barrido y lectura de la cerca: cantidad, área, composición por hábitat y tipo, hallazgo más raro.
-2. Cerca trazada a mano y su versión por teclado (centro elegido de una lista y radio).
+1. Cerca trazada a mano sobre el mapa (las reglas de geometría ya están: hasta 12 vértices, sin cruces, área máxima y dentro del territorio), con mira central y teclado.
+2. Lectura más rica de la cerca: área, composición por hábitat y tipo, hallazgo más raro.
 3. Cercas guardadas y link compartible con los vértices y la criatura abierta.
 4. Clima real (Open-Meteo) como modificador de qué aparece, explicado en pantalla.
 5. Contador de descubiertas sobre 386 y nombres en castellano en los marcadores.
