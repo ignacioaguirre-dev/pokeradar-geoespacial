@@ -5,6 +5,18 @@
   "Home": {
     "heading": "PokeRadar Geoespacial"
   },
+  "NotFound": {
+    "metaTitle": "Página inexistente · PokeRadar Geoespacial",
+    "title": "Esta página no existe.",
+    "body": "Revisá la dirección o volvé al mapa.",
+    "backToMap": "Volver al mapa"
+  },
+  "AppError": {
+    "title": "Algo salió mal.",
+    "body": "Probá de nuevo o volvé al mapa.",
+    "retry": "Reintentar",
+    "backToMap": "Volver al mapa"
+  },
   "Map": {
     "region": "Mapa de Argentina",
     "keyboardHelp": "Usá las flechas para moverte y las teclas + y − para acercar o alejar.",
@@ -218,6 +230,8 @@
     "errorBody": "Revisá tu conexión y probá de nuevo.",
     "retry": "Reintentar",
     "notFoundTitle": "Esta criatura no existe.",
+    "notFoundBody": "Revisá el enlace o elegí otra en el mapa.",
+    "backToMap": "Volver al mapa",
     "types": "Tipos",
     "stats": "Estadísticas",
     "height": "Altura",
