@@ -13,6 +13,13 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 - **Todo evento es el barrido de una cerca.** El descubrimiento se piensa como un radar: se elige una zona (una cerca), se barre y aparece lo que hay adentro, con el porqué de cada hallazgo. Un solo modelo mental para las cercas predefinidas por bioma, la cerca trazada a mano y, más adelante, los eventos en vivo.
 - **Una paleta con origen.** Cada color sale de un lugar real del país: el fondo es la noche de la puna, el texto la sal de Salinas Grandes, el hábitat el ocre de la puna jujeña, la condición el hielo del Perito Moreno, la energía la flor del ceibo y la alerta el rojo de Talampaya. Los nueve hábitats toman el suyo de su bioma (yungas salteñas, pampa en primavera, esteros del Iberá, cerro de los Siete Colores…). Están en `src/app/globals.css`, cada uno comentado con su lugar.
 
+### Qué aporta a la experiencia
+
+- **La ubicación no es arbitraria.** Quien explora entiende por qué una criatura está ahí: el territorio está teñido por hábitat y la leyenda dice cuál es cuál. El reparto es el mismo para todos: cada criatura está en el mismo lugar en cualquier dispositivo y en cada visita.
+- **Descubrir no es esperar.** El mapa no depende del catálogo (si PokéAPI tarda o falla, el mapa igual se puede usar), el vuelo de entrada se corta en cualquier momento y los puntos aparecen apenas llegan.
+- **Primero el celular.** El mapa ocupa toda la pantalla, el detalle es una hoja inferior que no tapa el mapa (en escritorio, un panel flotante) y los controles tienen 44 px. La ayuda explica los gestos del dispositivo que se está usando: táctil, mouse o touchpad.
+- **Se usa también con teclado y movimiento reducido.** El foco entra al panel al abrirlo y vuelve al cerrarlo, y sin animaciones el sprite queda quieto y el vuelo no corre.
+
 ### Qué hay en esta versión
 
 - Mapa de Argentina con estilo propio, hábitats y los avistamientos como puntos tenues desde zoom 5.
@@ -49,6 +56,13 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 - `src/i18n`: configuración de next-intl. `src/testing`: utilidades de test, que la app nunca importa.
 
 Dirección de dependencias: `domain ← features ← components ← app`; `hooks` es transversal y `lib` es sólo de servidor. Las fronteras las fuerza `pnpm lint` (`eslint.config.mjs`, incluidos los `import()` dinámicos de MapLibre) y las protege un test de conformidad, `tooling/import-boundaries.test.ts`, con un caso prohibido y uno permitido por regla más cada fuga encontrada en revisión.
+
+### Componentes
+
+- **Primitivas** (`src/components/ui`): `Button`, `Notice`, `Tag`, `EnergyBar` y `Quantity`. Reciben todo por props, no conocen el dominio y se ven juntas en `/system`.
+- **Piezas con dominio** (`src/components/creature`): `CreatureDetail` muestra los estados de carga, error con reintento y datos, y no sabe de dónde vienen.
+- **Composición de la portada** (`src/app/_components`): `page.tsx` es un componente de servidor que arranca la carga de avistamientos y le pasa la promesa a `MapStage`, la isla de cliente. `MapStage` maneja los estados del mapa, la ayuda y el vuelo; `HabitatMap` le agrega los hábitats a `BaseMap` (`src/map`); `CreatureRoute` lee `?creature=` y monta `DetailPanel`, que pide el detalle con `useCreature` (`src/features/creature`).
+- **La URL es el estado del panel.** Abrir una criatura suma una entrada al historial, «atrás» la cierra y un link compartido la abre.
 
 ### Servidor y cliente
 
@@ -88,47 +102,56 @@ Gitflow: `main` para producción, `develop` como base y una rama `feat/*`, `fix/
 
 Specs y planes por unidad, implementación con TDD, revisiones independientes del código de otro agente, preprocesado de los datos geográficos (el script de RESOLVE y el contorno de Argentina) y auditoría de los commits antes de cada push.
 
-### Dónde se equivocó y cómo se corrigió
+### Dónde se equivocó y cómo se intervino
 
-- **Commiteó con la identidad equivocada** (la configuración global) en este repo.
-  → Identidad, firma y `gh` locales al repo, y commits rehechos.
-- **Tapó un error de tipos con `typeRoots`** en lugar de buscar la causa (un `node_modules` huérfano fuera del proyecto).
-  → Se eliminó la causa y se quitó el parche.
-- **Usó un prefijo de rama que la convención no admite** (`ci/`).
-  → Renombrada a `chore/`; la política de PR lo habría rechazado igual.
-- **Fijó una versión «última» publicada ese mismo día** (jsdom) y pnpm agregó solo una excepción a su guarda de antigüedad mínima.
+Cada unidad pasa por una revisión independiente antes del PR y por una prueba manual en el navegador, y cada bug se arregla con un test que primero lo reproduce. Los errores de abajo salieron de esas dos fuentes. Lo que marca la revisión lo lee una persona, que decide si es real y cómo se corrige.
+
+**Afirmó o asumió cosas sin verificarlas**
+
+- Asumió que la cuenta de `gh` activa era la que decía la etiqueta, y commiteó con la identidad global en lugar de la del proyecto.
+  → Identidad, firma y `gh` propios del repo, y commits rehechos.
+- Fijó como «última» una versión de jsdom publicada ese mismo día, y pnpm agregó solo una excepción a su guarda de antigüedad mínima.
   → Se volvió a la versión anterior y se quitó la excepción.
-- **Sumó un plugin que la versión de Vitest ya no necesitaba** por seguir la documentación al pie de la letra.
-  → Se usa la resolución nativa de alias.
-- **Propuso la paleta neón de «radar»** (amarillo y cian sobre azul casi negro), la que repiten los generadores.
-  → Se reemplazó por colores tomados de biomas argentinos, cada uno con su lugar.
-- **El halo de atmósfera por defecto del mapa** quedaba genérico sobre el globo.
-  → Se reemplazó por un borde propio con un color del sistema.
-- **Acortó el proceso de una unidad** (sin spec ni plan) por interpretar de más una decisión.
+- Siguió la documentación al pie de la letra y sumó un plugin de alias que Vitest 5 ya no necesitaba (el propio Vitest avisaba).
+  → Se usa la resolución nativa.
+- Tapó un error de tipos con `typeRoots` en vez de buscar la causa: un `node_modules` huérfano fuera del proyecto.
+  → Se fue a la causa: se borró la carpeta y se quitó el parche.
+
+**Se salió del proceso o del alcance**
+
+- Salteó la spec y el plan de algunas unidades por interpretar de más una decisión.
   → Se reconstruyeron como specs combinadas y quedó la regla de que toda unidad deja su spec.
-- **Commits `test(...)` en ramas `feat/*`**, contra la convención del repo.
-  → Auditoría de commits al cerrar cada rama y reescritura antes del push.
-- **Un agente sumó páginas de error dentro de la rama de gestos**, fuera de su alcance.
+- Usó un prefijo de rama que la convención no admite (`ci/`) y commits `test(...)` en ramas `feat/*`.
+  → Rama renombrada. Desde entonces los commits se auditan al cerrar cada rama y se reescriben antes del push.
+- Un agente sumó páginas de error dentro de la rama de gestos.
   → Se separaron en su propia rama, con su propia revisión.
-- **Un agente precargaba el panel de detalle para todos los visitantes.**
-  → La revisión de buenas prácticas lo marcó y se pasó a precarga por intención (hover o foco).
-- **El botón «Saltar» del vuelo producía un error de hidratación en cada carga.**
-  → Detectado en revisión; se agregó un E2E que falla ante cualquier error de consola.
-- **Cerrar el detalle con doble clic hacía dos `history.back()`** y podía sacar al usuario de la app.
-  → Guarda en el historial y test.
-- **El estilo del mapa rotulaba provincias y ciudades de países vecinos.**
+
+**Eligió lo genérico**
+
+- Propuso la paleta neón de «radar» (amarillo y cian sobre azul casi negro) que repiten los generadores, y dejó el halo de atmósfera por defecto del mapa.
+  → El autor pidió colores con origen. La paleta sale de biomas argentinos y el globo lleva un borde propio con un color del sistema.
+
+**Bugs que llegaron hasta la revisión o la prueba manual**
+
+- El estilo del mapa rotulaba provincias y ciudades de países vecinos.
   → Lo vio el autor al probar; filtro geométrico con el contorno de Argentina.
-- **Faltaba el rótulo «Islas Malvinas».**
-  → La revisión final lo detectó; capa propia desde los datos de los tiles.
-- **Una corrección convertía cualquier tile fallido en «error del mapa».**
+- Faltaba el rótulo «Islas Malvinas».
+  → Lo detectó la revisión final; capa propia desde los datos de los tiles.
+- El botón «Saltar» producía un error de hidratación en cada carga.
+  → Lo detectó la revisión; se arregló y se agregó un E2E que falla ante cualquier error de consola.
+- Precargaba el panel de detalle para todos los visitantes.
+  → Lo marcó la revisión de buenas prácticas; ahora se precarga por intención (hover o foco).
+- Cerrar el detalle con doble clic hacía dos `history.back()` y podía sacar al usuario de la app.
+  → Guarda en el historial y test.
+- Una corrección convertía cualquier tile fallido en «error del mapa».
   → Se acotó a fallas del estilo o de la fuente antes de la carga.
-- **Firefox se colgaba al pasar axe** por una región ARIA anidada.
-  → Aislado regla por regla y corregido en el marcado.
-- **La rueda del mouse en macOS se leía como touchpad.**
-  → La revisión lo comparó con la regla de MapLibre y se corrigió con test.
-- **Un merge sin conflictos dejó dos claves `Habitats` en el JSON de textos**; `JSON.parse` se queda con la última sin avisar.
+- La rueda del mouse en macOS se leía como touchpad.
+  → La revisión lo comparó con la regla de MapLibre; se corrigió con test.
+- Firefox se colgaba al pasar axe por una región ARIA anidada.
+  → Se aisló regla por regla y se corrigió el marcado.
+- Un merge sin conflictos dejó dos claves `Habitats` en el JSON de textos, y `JSON.parse` se queda con la última sin avisar.
   → Test de conformidad del catálogo de mensajes.
-- **Un E2E inestable leía el anillo de foco en plena transición de color.**
+- Un E2E inestable leía el anillo de foco en plena transición de color.
   → Ahora espera el valor final.
 
 La IA aceleró casi todo, pero la calidad no salió de ahí: salió de revisiones independientes, de tests que reproducen el error antes del arreglo y de decisiones de producto tomadas por una persona.
