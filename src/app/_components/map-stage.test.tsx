@@ -412,11 +412,22 @@ describe("MapStage", () => {
       expect(fake.sweep!.detailPadding()).toEqual({ top: 96, right: 396, bottom: 72, left: 352 });
     });
 
+    // The panel grows with the reading (three lines on a phone): a fixed guess would leave creatures under it
+    it("on phones frames the fence above the sweep panel as tall as it really is", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      const panel = screen.getByRole("group", { name: "Cercas" }).parentElement!;
+      vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 418, height: 410 } as DOMRect);
+      window.innerHeight = 844;
+      expect(fake.sweep?.fencePadding().bottom).toBe(844 - 418 + 12);
+    });
+
     it("an empty fence says so", async () => {
       render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
       await flush();
       click("Mar Argentino");
-      expect(screen.getByText(/no hay criaturas en esta cerca. Probá con otra./)).toBeInTheDocument();
+      expect(screen.getByText("Mar Argentino: ninguna criatura detectada. Probá con otra cerca.")).toBeInTheDocument();
       expect(fake.sweep?.creatures).toEqual([]);
     });
 
@@ -427,6 +438,28 @@ describe("MapStage", () => {
       const alert = screen.getByRole("alert");
       expect(alert).toHaveTextContent("No pudimos cargar las criaturas.");
       expect(within(alert).getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    });
+
+    // Rings with nothing to trace would play once empty and again when the creatures arrive
+    it("the sweep waits for the sightings before it plays", async () => {
+      let resolve: (payload: typeof PAYLOAD) => void = () => {};
+      render(<MapStage sightings={new Promise((r) => (resolve = r))} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(screen.getByText("Buscando criaturas…")).toBeInTheDocument();
+      expect(fake.sweep?.fence).toBeNull();
+      await act(async () => resolve(PAYLOAD));
+      await flush();
+      expect(fake.sweep?.fence?.id).toBe("ibera");
+      expect(fake.sweep?.creatures).toHaveLength(2);
+    });
+
+    it("without sightings the sweep never plays", async () => {
+      render(<MapStage sightings={Promise.resolve(null)} />);
+      await flush();
+      click("Pampa húmeda");
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(fake.sweep?.fence).toBeNull();
     });
 
     // Touch screens never hover: the detail's code comes once the map is up and the browser idle

@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { composite, contrastRatio } from "../src/domain/color/contrast";
+import { colorDistance } from "../src/domain/color/distance";
 import { BIOME_OPACITY } from "../src/domain/color/biome";
 import { CURVE_OUT } from "../src/components/ui/motion-tokens";
 import { COLOR_USAGE } from "../src/domain/color/usage";
@@ -88,11 +89,14 @@ describe("token contrast", () => {
     });
   }
 
-  // The rings and the traces cross: the fence must not read as one more trace
-  it("sweep stays apart from the habitat ochre and from the text salt", () => {
-    expect(C.sweep).not.toBe(C.habitat);
-    expect(C.sweep).not.toBe(C.foreground);
-  });
+  // The rings and the traces cross, and the fence runs under labels: it must not read as one more trace
+  // or as text. Contrast cannot tell them apart (all light), color distance can: the candidates dropped
+  // for passing as the text sat near ΔE 10
+  for (const other of ["habitat", "foreground"]) {
+    it(`sweep stays at least ΔE 15 from ${other}`, () => {
+      expect(colorDistance(C.sweep, C[other])).toBeGreaterThanOrEqual(15);
+    });
+  }
 
   for (const pair of PAIRS) {
     for (const fg of pair.foreground) {

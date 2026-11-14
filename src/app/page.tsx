@@ -1,9 +1,9 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { preconnect } from "react-dom";
-import { toCompact } from "@/domain/sightings/compact";
 import { loadCatalog } from "@/features/catalog/queries";
 import { loadSightings } from "@/features/sightings/queries";
+import { sweepPayload } from "@/features/sweep/payload";
 import type { SightingsPayload } from "@/features/sweep/types";
 import { MapStage } from "./_components/map-stage";
 
@@ -17,10 +17,7 @@ export default async function Home() {
   // prerendered and the dots stream in. On failure it is null: the dots stay off and the sweep says so.
   // The catalog is the same cached call loadSightings already made; it adds the slugs that name each marker
   const sightings: Promise<SightingsPayload | null> = Promise.all([loadSightings(), loadCatalog()]).then(
-    ([loaded, catalog]) =>
-      loaded.ok && catalog.ok
-        ? { sightings: toCompact(loaded.data), slugs: catalog.data.map((species) => species.slug) }
-        : null,
+    ([loaded, catalog]) => (loaded.ok && catalog.ok ? sweepPayload(loaded.data, catalog.data) : null),
   );
   // MapLibre fetches the TileJSON with CORS, so only an anonymous connection gets reused
   preconnect("https://tiles.openfreemap.org", { crossOrigin: "anonymous" });

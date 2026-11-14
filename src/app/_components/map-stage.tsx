@@ -57,9 +57,18 @@ function detailPadding(wide: boolean) {
   return { ...PADDING_NARROW, bottom: Math.round(window.innerHeight * SHEET_SHARE) + ATTRIBUTION_HEIGHT };
 }
 
-function fencePadding(wide: boolean, detailOpen: boolean) {
+// Clear space kept between the lowest marker and the sweep panel
+const PANEL_GAP = 12;
+
+// On phones the sweep panel sits over the bottom of the map and grows with its reading (up to three lines),
+// so the fence is framed above the panel as measured, never above a guess
+function fencePadding(wide: boolean, detailOpen: boolean, panel: HTMLElement | null) {
   if (detailOpen) return detailPadding(wide);
-  return wide ? PADDING_WIDE : FENCE_PADDING_NARROW;
+  if (wide) return PADDING_WIDE;
+  const rect = panel?.getBoundingClientRect();
+  if (!rect || rect.height === 0) return FENCE_PADDING_NARROW;
+  const below = Math.round(window.innerHeight - rect.top) + PANEL_GAP;
+  return { ...FENCE_PADDING_NARROW, bottom: Math.max(FENCE_PADDING_NARROW.bottom, below) };
 }
 
 // Hover or focus on a creature: fetch its detail and the panel's code before the tap.
@@ -151,6 +160,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const online = useOnline();
   const mapRef = useRef<MapHandle>(null);
   const regionRef = useRef<HTMLElement>(null);
+  const sweepPanelRef = useRef<HTMLDivElement>(null);
   const [key, setKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("loading");
   const { fence, detection, choose } = useFenceSweep(FENCES, payload);
@@ -220,10 +230,11 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const ready = visible === "ready";
 
   const sweep: SweepProps = {
-    fence,
+    // Only once there is something to trace: rings over a fence still loading would play twice, or for nothing
+    fence: detection.status === "ready" ? fence : null,
     creatures,
     focus,
-    fencePadding: () => fencePadding(wide, focus !== null),
+    fencePadding: () => fencePadding(wide, focus !== null, sweepPanelRef.current),
     detailPadding: () => detailPadding(wide),
     onSelect: openCreature,
     onIntent: prepareCreature,
@@ -277,8 +288,11 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
       </section>
       {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
       {/* Above the controls on phones; a floating panel at the left on desktop. Usable without the map:
-          the list opens the detail even where WebGL is missing */}
-      <div className="pointer-events-auto relative flex w-full flex-col-reverse gap-3 rounded-panel border border-structure bg-surface p-2 md:absolute md:top-24 md:left-[max(0.75rem,env(safe-area-inset-left))] md:max-h-[calc(100dvh-12.5rem)] md:w-80 md:flex-col md:overflow-y-auto md:p-3">
+          the list opens the detail even where WebGL is missing. Fences first, then what they found:
+          seen in the order the keyboard reaches them */}
+      <div
+        ref={sweepPanelRef}
+        className="pointer-events-auto relative flex w-full flex-col gap-3 rounded-panel border border-structure bg-surface p-2 md:absolute md:top-24 md:left-[max(0.75rem,env(safe-area-inset-left))] md:max-h-[calc(100dvh-12.5rem)] md:w-80 md:overflow-y-auto md:p-3">
         <FencePicker
           fences={FENCES.map(({ id }) => ({ id, name: tFences(id) }))}
           active={fence?.id ?? null}

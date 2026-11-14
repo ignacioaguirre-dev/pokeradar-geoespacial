@@ -1,9 +1,10 @@
 import type { GeoJSONSource, Map as MapLibreMap, PaddingOptions } from "maplibre-gl";
 import { bbox } from "@/domain/geometry/bbox";
 import { centroid } from "@/domain/geometry/centroid";
+import { crowded } from "@/domain/geometry/crowded";
 import type { LngLat, Ring } from "@/domain/geometry/types";
 import { trace } from "@/domain/sightings/trace";
-import { addMarkers, type SweepCreature } from "./sweep-markers";
+import { addMarkers, MARKER_PX, type SweepCreature } from "./sweep-markers";
 import { ringRadius, sweepFrame, traceGradient, worldRadius, type SweepFrame } from "./sweep-motion";
 import { RING_LAYERS, SWEEP_FENCE, SWEEP_RINGS, SWEEP_TRACES } from "./sweep-style";
 
@@ -31,6 +32,41 @@ function setData(map: MapLibreMap, source: string, data: Parameters<GeoJSONSourc
 }
 
 const closed = (ring: Ring): LngLat[] => [...ring, ring[0]];
+
+// A regional view at most: creatures a few metres apart must not pull the camera down to street level
+const MAX_SETTLE_ZOOM = 10;
+
+const grow = (padding: PaddingOptions, by: number): PaddingOptions => ({
+  top: (padding.top ?? 0) + by,
+  right: (padding.right ?? 0) + by,
+  bottom: (padding.bottom ?? 0) + by,
+  left: (padding.left ?? 0) + by,
+});
+
+// Creatures traced near the center can land on top of each other: then the camera closes in on them,
+// leaving half a marker beyond the interface padding so the outermost ones are not cut by an edge.
+// A short second move (half the sweep's), none under reduced motion
+function frameCreatures(map: MapLibreMap, creatures: readonly SweepCreature[], padding: PaddingOptions, durationMs: number) {
+  const onScreen = creatures.map(({ point }) => {
+    const { x, y } = map.project([point[0], point[1]]);
+    return [x, y] as const;
+  });
+  if (!crowded(onScreen, MARKER_PX)) return;
+  const [west, south, east, north] = bbox(creatures.map((c) => c.point));
+  map.fitBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    {
+      padding: grow(padding, MARKER_PX / 2),
+      absolutePadding: true,
+      maxZoom: MAX_SETTLE_ZOOM,
+      duration: durationMs / 2,
+      animate: durationMs > 0,
+    },
+  );
+}
 
 export function clearSweep(map: MapLibreMap): void {
   for (const source of [SWEEP_FENCE, SWEEP_RINGS, SWEEP_TRACES]) setData(map, source, EMPTY);
@@ -77,6 +113,7 @@ export function runSweep(map: MapLibreMap, options: Options): () => void {
   let markers: ReturnType<typeof addMarkers> = [];
   const land = () => {
     markers = addMarkers(map, creatures, options);
+    frameCreatures(map, creatures, padding, durationMs);
   };
 
   const [west, south, east, north] = bbox(fence.ring);

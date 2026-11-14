@@ -12,8 +12,8 @@ const t = messages.Sweep;
 const IBERA = messages.Fences.ibera;
 const SEA = messages.Fences.sea;
 // Pinned by the real-data snapshot of src/features/sightings/queries.test.ts
-const IBERA_READING = "Esteros del Iberá: 12 criaturas detectadas y 36 señales débiles: achicá la cerca para resolverlas.";
-const SEA_READING = "Mar Argentino: 12 criaturas detectadas y 7 señales débiles: achicá la cerca para resolverlas.";
+const IBERA_READING = "Esteros del Iberá: 12 criaturas detectadas y 36 señales débiles. Achicá la cerca para resolverlas.";
+const SEA_READING = "Mar Argentino: 12 criaturas detectadas y 7 señales débiles. Achicá la cerca para resolverlas.";
 const VIEW = /^Ver /;
 
 // The markers live inside the map region; the list sits in the sweep panel
@@ -31,6 +31,18 @@ function reading(page: Page) {
 
 async function labels(locator: ReturnType<typeof markers>): Promise<(string | null)[]> {
   return locator.evaluateAll((buttons) => buttons.map((b) => b.getAttribute("aria-label")));
+}
+
+// Every sprite decoded and every entrance animation over
+function markersSettled(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const bodies = [...document.querySelectorAll<HTMLElement>("[data-map] .sweep-marker__body")];
+    return (
+      bodies.length > 0 &&
+      bodies.every((body) => body.querySelector("img")?.complete) &&
+      bodies.every((body) => body.getAnimations().every((a) => a.playState === "finished"))
+    );
+  });
 }
 
 async function choose(page: Page, fence: string) {
@@ -56,8 +68,8 @@ test.describe("with WebGL2", () => {
     await expect(markers(page)).toHaveCount(12, { timeout: 15_000 });
     await expect(list(page, IBERA)).toHaveCount(12);
     expect(await labels(markers(page))).toEqual(await labels(list(page, IBERA)));
-    // The markers have landed and drawn their sprites before axe looks at them
-    await page.waitForTimeout(500);
+    // The markers have drawn their sprites and finished their entrance before axe looks at them
+    await expect.poll(() => markersSettled(page)).toBe(true);
     await expectNoA11yViolations(page);
   });
 
@@ -146,6 +158,47 @@ test.describe("with WebGL2", () => {
     }, IBERA);
     expect(landed.count).toBe(12);
     expect(new Set(landed.animations)).toEqual(new Set(["none"]));
+  });
+
+  // Seen top to bottom as the keyboard reaches them: the fences, then what they found
+  test("on phones the reading and the list sit below the fences", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await waitForMapReady(page);
+    await choose(page, IBERA);
+    await expect(list(page, IBERA)).toHaveCount(12);
+    const fences = await page.getByRole("group", { name: t.fences }).boundingBox();
+    const readingBox = await reading(page).boundingBox();
+    const listBox = await page.getByRole("list", { name: t.list.replace("{fence}", IBERA) }).boundingBox();
+    expect(readingBox!.y).toBeGreaterThanOrEqual(fences!.y + fences!.height);
+    expect(listBox!.y).toBeGreaterThanOrEqual(readingBox!.y + readingBox!.height);
+  });
+
+  // Iberá traces the creatures nearest its center: on a phone the camera closes in until none hides another
+  // The traced creatures are the nearest to the center, so they land packed together: the camera closes in on
+  // them (up to a regional view, so a few close pairs may still touch) and keeps every one of them on screen
+  test("on phones the camera closes in on packed markers, keeping all of them in view", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await waitForMapReady(page);
+    await choose(page, IBERA);
+    await expect(markers(page)).toHaveCount(12, { timeout: 15_000 });
+    const zoom = () => page.locator("[data-map]").getAttribute("data-zoom").then(Number);
+    const landed = await zoom();
+    await expect.poll(zoom, { timeout: 10_000 }).toBeGreaterThan(landed);
+    const boxes = await markers(page).evaluateAll((buttons) =>
+      buttons.map((b) => {
+        const { x, y, width, height } = b.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
+    // In view means above the sweep panel, which covers the bottom of the map on phones
+    const panelTop = await page.getByRole("group", { name: t.fences }).evaluate(
+      (group) => group.parentElement!.getBoundingClientRect().top,
+    );
+    for (const box of boxes) {
+      expect(box.y + box.height, `marker under the panel at ${panelTop}`).toBeLessThanOrEqual(panelTop);
+    }
   });
 
   test("on phones the detail sheet leaves the map attribution in view", async ({ page }) => {

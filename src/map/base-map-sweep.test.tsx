@@ -37,6 +37,8 @@ const fake = vi.hoisted(() => {
     loaded = false;
     removed = false;
     zoom = 5;
+    // Pixels per degree of the projection below; small values pack the markers together
+    scale = 100;
     data = new Map<string, unknown>();
     paint = new Map<string, unknown>();
     setPadding = vi.fn();
@@ -81,6 +83,9 @@ const fake = vi.hoisted(() => {
     }
     getZoom() {
       return this.zoom;
+    }
+    project([lng, lat]: [number, number]) {
+      return { x: lng * this.scale, y: -lat * this.scale };
     }
     getSource(id: string) {
       if (!this.loaded || !(id in this.options.style.sources)) return undefined;
@@ -442,4 +447,71 @@ describe("BaseMap sweep", () => {
     rerender(sweep({ creatures: CREATURES.map((c) => ({ ...c })) }));
     expect(lastMap().fitBounds).toHaveBeenCalledOnce();
   });
+
+  describe("adaptive framing", () => {
+    const CREATURES_BOUNDS = [
+      [-57.2, -29.5],
+      [-56.5, -28.8],
+    ];
+    // The interface padding plus half a 48 px marker, so the outermost ones are not cut by an edge
+    const CREATURES_PADDING = { top: 120, right: 144, bottom: 96, left: 360 };
+
+    it("markers that would overlap: the camera closes in on the detected creatures", () => {
+      renderMap(sweep());
+      emit("load");
+      // About 20 px between the two creatures: their 48 px rings would overlap
+      lastMap().scale = 20;
+      emit("moveend");
+      playFrames();
+      expect(liveMarkers()).toHaveLength(2);
+      expect(lastMap().fitBounds).toHaveBeenCalledTimes(2);
+      expect(lastMap().fitBounds).toHaveBeenLastCalledWith(
+        CREATURES_BOUNDS,
+        expect.objectContaining({ padding: CREATURES_PADDING, absolutePadding: true, animate: true }),
+      );
+    });
+
+    // Two creatures a few metres apart would otherwise send the camera down to street level
+    it("closes in no further than a regional view", () => {
+      renderMap(sweep());
+      emit("load");
+      lastMap().scale = 20;
+      emit("moveend");
+      playFrames();
+      const options = lastMap().fitBounds.mock.calls[1][1];
+      expect(options.maxZoom).toBeGreaterThanOrEqual(7);
+      expect(options.maxZoom).toBeLessThanOrEqual(10);
+    });
+
+    it("markers well apart keep the fence framing", () => {
+      renderMap(sweep());
+      emit("load");
+      emit("moveend");
+      playFrames();
+      expect(liveMarkers()).toHaveLength(2);
+      expect(lastMap().fitBounds).toHaveBeenCalledOnce();
+    });
+
+    it("with reduced motion the closer framing jumps instead of moving", () => {
+      reduced = true;
+      renderMap(sweep());
+      lastMap().scale = 20;
+      emit("load");
+      expect(lastMap().fitBounds).toHaveBeenCalledTimes(2);
+      expect(lastMap().fitBounds).toHaveBeenLastCalledWith(
+        CREATURES_BOUNDS,
+        expect.objectContaining({ padding: CREATURES_PADDING, animate: false }),
+      );
+    });
+
+    it("an empty fence keeps the fence framing", () => {
+      renderMap(sweep({ creatures: [] }));
+      lastMap().scale = 20;
+      emit("load");
+      emit("moveend");
+      playFrames();
+      expect(lastMap().fitBounds).toHaveBeenCalledOnce();
+    });
+  });
+
 });

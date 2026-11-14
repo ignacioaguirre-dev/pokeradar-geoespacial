@@ -13,6 +13,7 @@ type Handlers = { onSelect(id: number): void; onIntent(id: number): void };
 
 // Sprite size inside the ochre ring; the ring makes the touch target 48 px
 const SPRITE_PX = 40;
+export const MARKER_PX = 48;
 
 // A real button, not MapLibre's pin: focusable, named and activated with Enter or Space.
 // The sprite is decorative (alt="") because the button carries the creature's name

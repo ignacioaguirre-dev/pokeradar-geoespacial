@@ -39,17 +39,13 @@ export function SweepReading({ detection, fenceName, onOpen, onIntent, onRetry }
         ? t("loading")
         : traced.length === 0
           ? t("empty", { fence })
-          : (
-              <>
-                {t.rich("detected", { fence, count: traced.length, n: () => <Quantity value={traced.length} /> })}
-                {detection.weakSignals > 0
-                  ? t.rich("weak", {
-                      count: detection.weakSignals,
-                      n: () => <Quantity value={detection.weakSignals} />,
-                    })
-                  : null}
-              </>
-            );
+          : t.rich("detected", {
+              fence,
+              count: traced.length,
+              weak: detection.weakSignals,
+              n: () => <Quantity value={traced.length} />,
+              w: () => <Quantity value={detection.weakSignals} />,
+            });
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
