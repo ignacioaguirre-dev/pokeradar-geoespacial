@@ -9,7 +9,6 @@ import { CURVE_OUT } from "@/components/ui/motion-tokens";
 import { spriteUrl } from "@/features/catalog/sprite";
 import { useCreature } from "@/features/creature/use-creature";
 import { useDurationToken } from "@/hooks/use-duration-token";
-import { isOpeningWithTransition } from "./creature-transition";
 import { PANEL } from "./detail-panel-shell";
 
 type Props = {
@@ -86,9 +85,8 @@ export function DetailPanel({ id, wide, onClose, fallbackFocus }: Props) {
             key="detail"
             ref={panelRef}
             aria-label={name ?? t("region")}
-            className={`${PANEL} [view-transition-name:creature-panel]`}
-            // Opened from the map, the view transition already brings the panel in from its edge
-            initial={isOpeningWithTransition() ? false : hidden}
+            className={PANEL}
+            initial={hidden}
             animate={{ x: 0, y: 0 }}
             exit={hidden}
             transition={{ duration: durationMs / 1000, ease: CURVE_OUT }}

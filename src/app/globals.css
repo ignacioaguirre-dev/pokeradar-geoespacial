@@ -110,38 +110,6 @@
   }
 }
 
-/* Opening a creature from the map: its image travels from the marker to the detail, and the panel comes in from
-   its edge as part of the same transition. Reduced motion never starts it */
-::view-transition-group(creature-sprite) {
-  /* Long enough to follow the image across the map */
-  animation-duration: calc(var(--duration-sweep) * 0.75);
-  animation-timing-function: var(--curve-out);
-}
-::view-transition-old(creature-sprite),
-::view-transition-new(creature-sprite) {
-  height: 100%;
-  object-fit: contain;
-  image-rendering: pixelated;
-}
-::view-transition-new(creature-panel) {
-  animation: panel-in-y calc(var(--duration-sweep) * 0.75) var(--curve-out) both;
-}
-@media (min-width: 768px) {
-  ::view-transition-new(creature-panel) {
-    animation-name: panel-in-x;
-  }
-}
-@keyframes panel-in-x {
-  from {
-    transform: translateX(100%);
-  }
-}
-@keyframes panel-in-y {
-  from {
-    transform: translateY(100%);
-  }
-}
-
 /* Controls that arrive after the first paint (their chunk loads late) ease in instead of popping, one after another.
    Their own start position decides the direction; reduced motion zeroes the tokens, so they are simply there */
 @keyframes control-in {

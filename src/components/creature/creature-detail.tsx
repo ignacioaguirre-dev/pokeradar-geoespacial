@@ -136,8 +136,11 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef,
       ) : (
         <>
           <div className="flex gap-4">
-            {/* One named slot for every state: the marker's image travels here when the detail opens from the map */}
-            <span data-creature-sprite="" className="block size-24 shrink-0 [view-transition-name:creature-sprite]">
+            {/* The creature rises into place from a little below, once the panel is in; keyed so each one does */}
+            <span
+              key={placeholderSprite}
+              className="enter-in block size-24 shrink-0 [--control-in-y:1rem] [animation-delay:var(--duration-medium)]"
+            >
               {ready ? (
                 <Sprite sprite={data.sprite} name={data.name} />
               ) : placeholderSprite ? (
