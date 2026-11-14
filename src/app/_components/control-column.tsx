@@ -105,8 +105,11 @@ export function ControlColumn({ disabled, onZoomIn, onZoomOut, onReset, helpLine
             </Button>
           </span>
           {intro ? (
-            // Left of the column, centred on the mark it explains; never wider than the room the column leaves
-            <div className="absolute top-1/2 right-full mr-2 w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2">{intro}</div>
+            // Left of the column, centred on the mark it explains; never wider than the room the column leaves.
+            // It comes in from the far side, so it never touches the column on its way
+            <div className="enter-in absolute top-1/2 right-full mr-2 w-[min(18rem,calc(100vw-5rem))] -translate-y-1/2 [--control-in-x:-0.5rem] [--control-in-y:0]">
+              {intro}
+            </div>
           ) : null}
         </div>
         <Button variant="secondary" aria-label={t("reset")} disabled={disabled} onClick={onReset} className="px-0!">

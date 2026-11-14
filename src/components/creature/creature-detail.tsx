@@ -17,6 +17,8 @@ type Props = {
   onRetry(): void;
   onClose(): void;
   titleRef?: Ref<HTMLHeadingElement>;
+  // The still image, known from the id alone: shown while the detail loads, so the sprite is there from the start
+  placeholderSprite?: string;
 };
 
 // Base stats top out at 255 across every species
@@ -78,7 +80,7 @@ function Sprite({ sprite, name }: { sprite: Detail["sprite"]; name: string }) {
   );
 }
 
-export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef }: Props) {
+export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef, placeholderSprite }: Props) {
   const t = useTranslations("Creature");
   const tStats = useTranslations("Stats");
   const tTypes = useTranslations("Types");
@@ -92,8 +94,9 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
       <header className="flex flex-col gap-1">
         <h2
           ref={titleRef}
+          // Focus lands here when the panel opens, for screen readers; a heading is not a control, so no ring
           tabIndex={-1}
-          className="order-last self-start font-display font-stretch-condensed text-headline font-extrabold uppercase wrap-break-word rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+          className="order-last self-start font-display font-stretch-condensed text-headline font-extrabold uppercase wrap-break-word outline-none"
         >
           {ready ? (
             data.name
@@ -133,11 +136,27 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
       ) : (
         <>
           <div className="flex gap-4">
-            {ready ? (
-              <Sprite sprite={data.sprite} name={data.name} />
-            ) : (
-              <span aria-hidden="true" className={`size-24 shrink-0 ${SKELETON}`} />
-            )}
+            {/* The creature rises into place from a little below, once the panel is in; keyed so each one does */}
+            <span
+              key={placeholderSprite}
+              className="enter-in block size-24 shrink-0 [--control-in-y:1rem] [animation-delay:var(--duration-medium)]"
+            >
+              {ready ? (
+                <Sprite sprite={data.sprite} name={data.name} />
+              ) : placeholderSprite ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={placeholderSprite}
+                  alt=""
+                  width={96}
+                  height={96}
+                  crossOrigin="anonymous"
+                  className="size-24 object-contain [image-rendering:pixelated]"
+                />
+              ) : (
+                <span aria-hidden="true" className={`block size-24 ${SKELETON}`} />
+              )}
+            </span>
             <div className="flex min-w-0 flex-col gap-3">
               {ready ? (
                 <ul aria-label={t("types")} className="flex flex-wrap gap-x-3 gap-y-1">

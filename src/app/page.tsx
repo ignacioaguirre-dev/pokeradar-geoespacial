@@ -60,7 +60,7 @@ export default async function Home() {
     // Clipped rather than hidden: a hidden box can still be scrolled from code (a focus), sliding the whole map aside
     <div className="relative flex h-dvh flex-col justify-end gap-2 overflow-clip bg-map-sea pb-[env(safe-area-inset-bottom)]">
       {/* Lets drags reach the map under the brand */}
-      <header className="pointer-events-none absolute top-[max(0.75rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-10">
+      <header className="enter-in pointer-events-none absolute [--control-in-y:-0.5rem] top-[max(0.75rem,env(safe-area-inset-top))] left-[max(0.75rem,env(safe-area-inset-left))] z-10">
         <h1 className="font-display font-stretch-condensed text-title font-bold uppercase tracking-tight md:text-headline">
           {t("heading")}
         </h1>
@@ -88,7 +88,7 @@ export default async function Home() {
       </main>
       <footer
         aria-label={tMap("attribution")}
-        className="relative mr-[max(0.75rem,env(safe-area-inset-right))] ml-[max(0.75rem,env(safe-area-inset-left))] self-end rounded-t-panel text-label text-muted md:bg-background/80 md:px-2"
+        className="enter-in relative mr-[max(0.75rem,env(safe-area-inset-right))] ml-[max(0.75rem,env(safe-area-inset-left))] self-end rounded-t-panel text-label text-muted md:bg-background/80 md:px-2"
       >
         {/* Phones fold it behind one button, like MapLibre's compact attribution, so it costs one line of map */}
         <details className="group md:hidden">

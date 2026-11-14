@@ -105,6 +105,9 @@ export function BaseMap({
         fitBoundsOptions: { padding, absolutePadding: true },
         maxBounds: MAX_BOUNDS,
         minZoom: MIN_ZOOM,
+        // The map idles between moves. Without the last frame kept, Chrome repaints a hovered control or marker
+        // over an emptied buffer and that rectangle of the map shows the background instead
+        canvasContextAttributes: { preserveDrawingBuffer: true },
         // Its handler reads every wheel as zoom; the wheel listener below pans touchpad swipes instead
         scrollZoom: false,
         dragRotate: false,
