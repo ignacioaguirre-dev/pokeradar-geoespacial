@@ -142,6 +142,11 @@ test.describe("with WebGL2", () => {
     const ring = { style: "solid", width: "2px", color: FOREGROUND };
     const stops = [
       { locator: page.getByRole("application", { name: t.region }), offset: "-2px" },
+      // The sweep panel follows the map: its fences, in their order
+      ...Object.values(messages.Fences).map((name) => ({
+        locator: page.getByRole("button", { name, exact: true }),
+        offset: "2px",
+      })),
       // The legend sits left of the controls, so it comes first in both reading and focus order
       { locator: page.getByRole("button", { name: t.legend }), offset: "2px" },
       { locator: page.getByRole("button", { name: t.zoomIn }), offset: "2px" },
