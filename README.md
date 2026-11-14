@@ -11,7 +11,7 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 - **Argentina como protagonista.** El país llena la pantalla, pensado primero para el celular. El estilo del mapa es propio: sólo se rotulan provincias y ciudades argentinas, las Islas Malvinas llevan su rótulo y los hábitats tiñen el territorio con el color de su bioma.
 - **La llegada desde el espacio.** La primera visita empieza con el globo terráqueo y un vuelo hasta Argentina que pasa de la esfera al plano. Se corta con «Saltar» o con cualquier toque, rueda o tecla.
 - **Una paleta con origen.** Cada color sale de un lugar real: el fondo es la noche de la puna, el texto la sal de Salinas Grandes, el hábitat el ocre de la puna jujeña, la energía la flor del ceibo y la alerta el rojo de Talampaya. Cada hábitat toma el suyo de su bioma (yungas salteñas, esteros del Iberá, cerro de los Siete Colores…).
-- **Todo evento es el barrido de una cerca.** El descubrimiento se diseñó como un radar: se elige una zona (una cerca), se barre y aparece lo que hay adentro, con el porqué de cada hallazgo. Hay ocho cercas sobre biomas argentinos (yungas, Iberá, pampa, puna, monte, Patagonia, mar, Misiones): al elegir una, los anillos salen desde su centro, cada criatura detectada deja su traza hasta su marcador (hasta 12; el resto queda como señales débiles) y una lectura dice cuántas hay y qué hacer para ver más. Tocar un marcador abre el detalle de esa criatura.
+- **Todo evento es el barrido de una cerca.** El descubrimiento se diseñó como un radar: se elige una zona (una cerca), se barre y aparece lo que hay adentro, con el porqué de cada hallazgo. Hay ocho cercas sobre biomas argentinos (yungas, Iberá, pampa, puna, monte, Patagonia, mar, Misiones): al elegir una, los anillos salen desde su centro, cada criatura detectada deja su traza hasta su marcador (hasta 12; el resto queda como señales débiles) y una lectura dice cuántas hay y qué hacer para ver más. Tocar un marcador abre el detalle de esa criatura. Además de las predefinidas se puede **trazar una cerca propia**: cada toque suma un vértice (o la mira central con «Sumar punto acá», que también anda con flechas y Enter), con reglas que avisan antes del error (de 3 a 12 vértices, sin lados que se crucen, área máxima y dentro del territorio), y al cerrarla se barre igual que las demás.
 
 **Qué aporta a la experiencia**
 
@@ -114,12 +114,12 @@ La IA aceleró el trabajo; la calidad salió de las revisiones independientes, d
 
 **Producto**, en orden:
 
-1. Cerca trazada a mano sobre el mapa (las reglas de geometría ya están: hasta 12 vértices, sin cruces, área máxima y dentro del territorio), con mira central y teclado.
-2. Lectura más rica de la cerca: área, composición por hábitat y tipo, hallazgo más raro.
-3. Cercas guardadas y link compartible con los vértices y la criatura abierta.
-4. Clima real (Open-Meteo) como modificador de qué aparece, explicado en pantalla.
-5. Contador de descubiertas sobre 386 y nombres en castellano en los marcadores.
-6. Sismos recientes (USGS) y aviso al volver si cayó uno dentro de una cerca guardada.
+1. Lectura más rica de la cerca: área, composición por hábitat y tipo, hallazgo más raro.
+2. Cercas guardadas y link compartible con los vértices y la criatura abierta.
+3. Clima real (Open-Meteo) como modificador de qué aparece, explicado en pantalla.
+4. Contador de descubiertas sobre 386 y nombres en castellano en los marcadores.
+5. Sismos recientes (USGS) y aviso al volver si cayó uno dentro de una cerca guardada.
+6. Transición compartida al abrir una criatura: su imagen viaja del marcador al panel de detalle (View Transitions).
 
 **Técnico**
 
