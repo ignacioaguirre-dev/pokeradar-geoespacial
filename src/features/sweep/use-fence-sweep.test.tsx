@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Fence } from "@/domain/geometry/types";
 import type { SightingsPayload } from "./types";
-import { displayName, useFenceSweep } from "./use-fence-sweep";
+import { displayName, OWN_FENCE_ID, useFenceSweep } from "./use-fence-sweep";
 
 const FENCES: Fence[] = [
   {
@@ -104,5 +104,47 @@ describe("useFenceSweep", () => {
     act(() => result.current.choose("box"));
     expect(result.current.fence).not.toBe(first);
     expect(result.current.fence?.id).toBe("box");
+  });
+
+  describe("own fence", () => {
+    // Holds Mr-mime and Squirtle, not Bulbasaur at x 0.1
+    const OWN = [
+      [0.3, -1],
+      [6, -1],
+      [6, 6],
+      [0.3, 6],
+    ] as const;
+
+    it("detects inside the drawn ring, under the own id", () => {
+      const { result } = renderHook(() => useFenceSweep(FENCES, PAYLOAD));
+      act(() => result.current.draw(OWN));
+      expect(result.current.fence).toMatchObject({ id: OWN_FENCE_ID, ring: OWN });
+      expect(result.current.detection).toMatchObject({
+        status: "ready",
+        // Nearest to the centroid (3.15, 2.5) first
+        traced: [{ id: 3 }, { id: 2 }],
+      });
+    });
+
+    it("replaces a preset and is replaced by one", () => {
+      const { result } = renderHook(() => useFenceSweep(FENCES, PAYLOAD));
+      act(() => result.current.choose("box"));
+      act(() => result.current.draw(OWN));
+      expect(result.current.fence?.id).toBe(OWN_FENCE_ID);
+      act(() => result.current.choose("far"));
+      expect(result.current.fence?.id).toBe("far");
+    });
+
+    it("drawing another replaces the last one", () => {
+      const { result } = renderHook(() => useFenceSweep(FENCES, PAYLOAD));
+      act(() => result.current.draw(OWN));
+      const other = [
+        [-1, -1],
+        [1, -1],
+        [0, 1],
+      ] as const;
+      act(() => result.current.draw(other));
+      expect(result.current.fence?.ring).toBe(other);
+    });
   });
 });
