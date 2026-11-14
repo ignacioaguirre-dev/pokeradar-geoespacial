@@ -1,4 +1,4 @@
-import type { AreaHabitat } from "./habitats";
+import type { AreaHabitat } from "@/domain/habitat/types";
 
 export type MapColors = {
   sea: string;
