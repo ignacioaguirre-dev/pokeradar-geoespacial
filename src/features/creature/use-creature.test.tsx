@@ -74,6 +74,7 @@ describe("useCreature", () => {
     ["an unknown type", { ...detail(5), types: ["laser"] }],
     ["a sprite without a still image", { ...detail(5), sprite: { animated: null } }],
     ["a non-JSON body", "<html>"],
+    ["another creature's id", detail(99)],
   ])("maps an invalid shape (%s) to unavailable", async (_, body) => {
     fetchMock.mockResolvedValue(
       typeof body === "string" ? new Response(body, { status: 200 }) : json(body),
@@ -108,6 +109,24 @@ describe("useCreature", () => {
     resolveFirst(json(detail(7, "Pichu")));
     await Promise.resolve();
     expect(result.current.data?.name).toBe("Raichu");
+  });
+
+  it("reopening a creature that failed shows loading, not the old error, while it asks again", async () => {
+    let respond: (response: Response) => void = () => {};
+    fetchMock
+      .mockResolvedValueOnce(json({ error: "unavailable" }, 502))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => (respond = resolve)));
+    const { result, rerender } = renderHook(({ id }) => useCreature(id), {
+      initialProps: { id: 11 as number | null },
+    });
+    await waitFor(() => expect(result.current.state).toBe("error"));
+    rerender({ id: null });
+    expect(result.current.state).toBe("idle");
+    rerender({ id: 11 });
+    expect(result.current.state).toBe("loading");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    respond(json(detail(11)));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
   });
 
   it("unmounting aborts the request", () => {

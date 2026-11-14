@@ -47,6 +47,13 @@ type Settled = { key: string; data?: CreatureDetail; error?: CreatureError };
 export function useCreature(id: number | null): CreatureState {
   const [attempt, setAttempt] = useState(0);
   const [settled, setSettled] = useState<Settled | null>(null);
+  const [settledFor, setSettledFor] = useState(id);
+  // A new id forgets the last result: reopening a creature that failed must ask again, not show the old error.
+  // Adjusted while rendering so the stale result never reaches the screen
+  if (settledFor !== id) {
+    setSettledFor(id);
+    setSettled(null);
+  }
   const key = `${id}:${attempt}`;
   const cached = id === null ? undefined : cache.get(id);
 
@@ -61,7 +68,8 @@ export function useCreature(id: number | null): CreatureState {
         if (response.status === 404) return settle({ error: "not-found" });
         if (!response.ok) return settle({ error: "unavailable" });
         const body: unknown = await response.json();
-        if (!isCreatureDetail(body)) return settle({ error: "unavailable" });
+        // Another creature's detail under this id is as wrong as a broken shape
+        if (!isCreatureDetail(body) || body.id !== id) return settle({ error: "unavailable" });
         cache.set(id, body);
         settle({ data: body });
       })
