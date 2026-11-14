@@ -9,6 +9,8 @@ export type MapColors = {
   label: string;
   city: string;
   sighting: string;
+  sweep: string;
+  trace: string;
   space: string;
   biome: Record<AreaHabitat, string>;
 };
@@ -27,6 +29,9 @@ export function readMapColors(): MapColors {
     city: token("foreground"),
     // Neutral gray: dots must not compete with the biome fills nor read as a habitat
     sighting: token("muted"),
+    sweep: token("sweep"),
+    // The ochre of a creature present by its habitat: every trace of a preset fence is one
+    trace: token("habitat"),
     space: token("map-space"),
     biome: {
       forest: token("biome-forest"),

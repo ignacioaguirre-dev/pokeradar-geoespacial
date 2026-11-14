@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreatureDetail } from "@/features/catalog/types";
-import { useCreature } from "./use-creature";
+import { prefetchCreature, useCreature } from "./use-creature";
 
 function detail(id: number, name = "Pikachu"): CreatureDetail {
   return {
@@ -182,6 +182,54 @@ describe("useCreature", () => {
     const second = renderHook(() => useCreature(10));
     expect(second.result.current.state).toBe("ready");
     expect(second.result.current.data).toEqual(detail(10));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Fired on hover or focus of a marker, before the tap: the panel then opens with the data in hand
+describe("prefetchCreature", () => {
+  it("fills the cache, so opening the creature needs no request", async () => {
+    fetchMock.mockResolvedValue(json(detail(40)));
+    prefetchCreature(40);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    const { result } = renderHook(() => useCreature(40));
+    expect(result.current.state).toBe("ready");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks once however often the pointer passes", () => {
+    fetchMock.mockReturnValue(new Promise<Response>(() => {}));
+    prefetchCreature(41);
+    prefetchCreature(41);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a creature opened while its prefetch is in flight waits for it instead of asking again", async () => {
+    let respond: (response: Response) => void = () => {};
+    fetchMock.mockReturnValue(new Promise<Response>((resolve) => (respond = resolve)));
+    prefetchCreature(42);
+    const { result } = renderHook(() => useCreature(42));
+    expect(result.current.state).toBe("loading");
+    respond(json(detail(42)));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed prefetch is not kept: opening the creature asks again", async () => {
+    fetchMock.mockResolvedValueOnce(json({ error: "unavailable" }, 502)).mockResolvedValue(json(detail(43)));
+    prefetchCreature(43);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    const { result } = renderHook(() => useCreature(43));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a creature already opening is not asked for again on hover", () => {
+    fetchMock.mockReturnValue(new Promise<Response>(() => {}));
+    renderHook(() => useCreature(44));
+    prefetchCreature(44);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

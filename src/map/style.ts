@@ -12,6 +12,7 @@ import {
   SIGHTINGS_SOURCE,
   toSightingCollection,
 } from "./sightings";
+import { sweepLayers, sweepSources } from "./sweep-style";
 
 const SOURCE = "openmaptiles";
 const HABITATS = "habitats";
@@ -54,6 +55,7 @@ export function buildStyle(
       [HABITATS]: { type: "geojson", data: habitats },
       // Always present, even empty: sightings that stream in later only need setData
       [SIGHTINGS_SOURCE]: { type: "geojson", data: toSightingCollection(sightings) },
+      ...sweepSources(),
     },
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     ...(projection ? { projection } : {}),
@@ -144,6 +146,8 @@ export function buildStyle(
           "circle-opacity": SIGHTING_OPACITY,
         },
       },
+      // Over the dots it reveals, under the labels so names stay legible
+      ...sweepLayers(colors),
       {
         id: "water-name",
         type: "symbol",

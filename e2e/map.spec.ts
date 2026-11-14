@@ -76,6 +76,10 @@ test.describe("with WebGL2", () => {
 
     await waitForMapReady(page);
     await expect(page.getByRole("application", { name: t.region })).toBeVisible();
+    // Phones fold the attribution behind one button (a native disclosure, which has no role to query by)
+    if (page.viewportSize()!.width < 768) {
+      await page.getByRole("contentinfo", { name: t.attribution }).locator("summary").click();
+    }
     for (const { name, href } of ATTRIBUTIONS) {
       const anchor = page.getByRole("link", { name });
       await expect(anchor).toBeVisible();
@@ -164,6 +168,11 @@ test.describe("with WebGL2", () => {
     const ring = { style: "solid", width: "2px", color: FOREGROUND };
     const stops = [
       { locator: page.getByRole("application", { name: t.region }), offset: "-2px" },
+      // The sweep panel follows the map: its fences, in their order
+      ...Object.values(messages.Fences).map((name) => ({
+        locator: page.getByRole("button", { name, exact: true }),
+        offset: "2px",
+      })),
       // The movement help sits above the controls on a first visit
       { locator: page.getByRole("button", { name: help.dismiss }), offset: "2px" },
       // The legend and the help button sit left of the controls, so they come first in both reading and focus order
@@ -343,7 +352,7 @@ test.describe("with WebGL2", () => {
       expect(await zoomOf(page)).toBe(final);
     });
 
-    // Skip first while flying; once on the map, the movement help and then the rest of the bottom row
+    // Skip first while flying; once on the map, the fences, the movement help and then the rest of the bottom row
     test("after skipping from the keyboard, Tab reaches the movement help and the controls", async ({ page }) => {
       await startFlight(page);
       await expect(helpIntro(page)).toHaveCount(0);
@@ -353,6 +362,8 @@ test.describe("with WebGL2", () => {
       await expect(page.getByRole("application", { name: t.region })).toBeFocused();
       await expect(helpIntro(page)).toBeVisible();
       for (const locator of [
+        // The sweep panel's fences sit between the map and the bottom row
+        ...Object.values(messages.Fences).map((name) => page.getByRole("button", { name, exact: true })),
         page.getByRole("button", { name: help.dismiss }),
         page.getByRole("button", { name: t.legend }),
         page.getByRole("button", { name: help.title }),
@@ -537,6 +548,27 @@ test.describe("movement help", () => {
       await expect(intro).not.toContainText(help.mouse);
       await expectNoA11yViolations(page);
     });
+
+    // Each sheet rises from the bottom over a dimmed map: a tap on the map above it closes it
+    for (const [name, content] of [
+      [help.title, help.touch],
+      [t.legend, messages.Habitats.forest],
+    ] as const) {
+      test(`the ${name} sheet is accessible and a tap on the dimmed map closes it`, async ({ page }) => {
+        await markHelpSeen(page);
+        await page.goto("/");
+        await waitForMapReady(page);
+        const button = page.getByRole("button", { name, exact: true });
+        await button.click();
+        const sheet = page.getByRole("dialog", { name });
+        await expect(sheet).toContainText(content);
+        await expect(button).toHaveAttribute("aria-expanded", "true");
+        await expectNoA11yViolations(page);
+        await page.mouse.click(40, 120);
+        await expect(sheet).toHaveCount(0);
+        await expect(button).toBeFocused();
+      });
+    }
   });
 
   type Box = { x: number; y: number; width: number; height: number };
@@ -554,6 +586,7 @@ test.describe("movement help", () => {
   for (const [width, height] of [
     [360, 740],
     [390, 844],
+    [1024, 768],
     [1280, 800],
   ] as const) {
     test(`at ${width} px the help fits on screen and never sits under the creature detail`, async ({ page }) => {
@@ -566,8 +599,9 @@ test.describe("movement help", () => {
       // Settled: the panel slides in
       await expect.poll(async () => (await boxOf(detail)).x).toBe(width < 768 ? 0 : width - 12 - 360);
       const intro = helpIntro(page);
-      if (width < 768) {
-        // The bottom sheet covers the controls row, so the help waits until it closes
+      const helpButton = page.getByRole("button", { name: help.title });
+      if (width < 1120) {
+        // A phone's sheet or a narrow desktop's panel would cover where the help opens, so it waits until it closes
         await expect(intro).toHaveCount(0);
         await page.getByRole("button", { name: messages.Creature.close }).click();
         await expect(detail).toHaveCount(0);
@@ -576,25 +610,45 @@ test.describe("movement help", () => {
         await expect(intro).toBeVisible();
         expect(overlaps(await boxOf(intro), await boxOf(detail))).toBe(false);
       }
-      for (const box of [await boxOf(intro), await boxOf(page.getByRole("button", { name: help.title }))]) {
+      for (const box of [await boxOf(intro), await boxOf(helpButton)]) {
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);
       }
-      // The button keeps its label without crowding the map controls
-      expect(
-        overlaps(
-          await boxOf(page.getByRole("button", { name: help.title })),
-          await boxOf(page.getByRole("navigation", { name: t.controls })),
-        ),
-      ).toBe(false);
+      // On phones the button is only its 44 px info mark in the control column; from md it keeps its label
+      const helpBox = await boxOf(helpButton);
+      if (width < 768) {
+        expect(helpBox.width).toBe(44);
+        expect(overlaps(await boxOf(intro), await boxOf(page.getByRole("navigation", { name: t.controls })))).toBe(false);
+      } else {
+        expect(helpBox.width).toBeGreaterThan(44);
+        expect(overlaps(helpBox, await boxOf(page.getByRole("navigation", { name: t.controls })))).toBe(false);
+      }
 
       await page.getByRole("button", { name: help.dismiss }).click();
-      await page.getByRole("button", { name: help.title }).click();
-      const panel = page.getByRole("region", { name: help.title });
+      await helpButton.click();
+      // A sheet from the bottom on phones, a panel above the row from md
+      const panel = page.getByRole(width < 768 ? "dialog" : "region", { name: help.title });
+      await expect(panel).toBeVisible();
+      // The sheet rises into place
+      await expect.poll(async () => {
+        const box = await boxOf(panel);
+        return box.y + box.height;
+      }).toBeLessThanOrEqual(height);
       const panelBox = await boxOf(panel);
       expect(panelBox.x).toBeGreaterThanOrEqual(0);
       expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(width);
-      if (width >= 768) expect(overlaps(panelBox, await boxOf(detail))).toBe(false);
+      await page.keyboard.press("Escape");
+      await expect(panel).toHaveCount(0);
+      if (width < 768) return;
+
+      // Reopened with a creature open, the panel stays clear of the detail at any desktop width
+      await page.goto("/?creature=25");
+      await waitForMapReady(page);
+      await expect(detail.getByRole("meter", { name: messages.Stats.speed })).toBeVisible({ timeout: 15_000 });
+      await expect.poll(async () => (await boxOf(detail)).x).toBe(width - 12 - 360);
+      await helpButton.click();
+      await expect(panel).toBeVisible();
+      expect(overlaps(await boxOf(panel), await boxOf(detail))).toBe(false);
     });
   }
 
@@ -611,7 +665,8 @@ test.describe("movement help", () => {
       await expectScreenshot(page, `home-help-intro-${width}`);
 
       await page.getByRole("button", { name: help.title }).click();
-      await expect(page.getByRole("region", { name: help.title })).toBeVisible();
+      // Phones open it as a sheet from the bottom; desktop, as a panel by the button
+      await expect(page.getByRole(width < 768 ? "dialog" : "region", { name: help.title })).toBeVisible();
       await expectScreenshot(page, `home-help-panel-${width}`);
     });
   }

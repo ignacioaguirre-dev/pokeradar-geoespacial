@@ -1,54 +1,122 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Suspense, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
+import { Suspense, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { preload } from "react-dom";
+import { FencePicker } from "@/components/sweep/fence-picker";
+import { SweepReading } from "@/components/sweep/sweep-reading";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { FENCES } from "@/data/fences";
+import { spriteUrl } from "@/features/catalog/sprite";
+import { CREATURE_PARAM, openCreature, parseCreatureId } from "@/features/creature/history";
 import { useOnline } from "@/hooks/use-online";
-import { usePointerKind } from "@/hooks/use-pointer-kind";
-import { useResolved } from "@/hooks/use-resolved";
-import type { CompactSighting } from "@/domain/sightings/compact";
-import { CREATURE_PARAM, parseCreatureId } from "@/features/creature/history";
 import {
   getSnapshot as hasSeenMapHelp,
   markMapHelpSeen,
   subscribe as subscribeMapHelp,
 } from "@/features/map-help/storage";
-import type { MapHandle, MapInput, MapStatus } from "@/map/base-map";
+import type { SightingsPayload } from "@/features/sweep/types";
+import { useFenceSweep } from "@/features/sweep/use-fence-sweep";
+import { usePointerKind } from "@/hooks/use-pointer-kind";
+import { useResolved } from "@/hooks/use-resolved";
+import type { MapHandle, MapInput, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
-import { CreatureRoute } from "./creature-route";
-import { HabitatLegend } from "./habitat-legend";
+import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
 import { introPlayed } from "./intro-played";
 import { LoadBoundary, useLazyWhenOnline } from "./load-when-online";
-import { introLines, MapHelpButton, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
+import { introLines, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
 
 // The notices come from MapStage, so the chunk shows nothing while it downloads (or fails).
 // HabitatMap carries the habitat data, so it rides in this deferred chunk instead of the initial JS
 const loadMap = () => import("./habitat-map").then((m) => m.HabitatMap);
 
+// The controls wait for the map anyway, so each layout comes in its own chunk, into room already kept for it
+const ControlColumn = dynamic(() => import("./control-column").then((m) => m.ControlColumn), {
+  ssr: false,
+  loading: () => null,
+});
+const ControlRow = dynamic(() => import("./control-row").then((m) => m.ControlRow), {
+  ssr: false,
+  loading: () => null,
+});
+
 const SLOW_MS = 8_000;
 const TIMEOUT_MS = 30_000;
 
 // Module constants keep their identity, so BaseMap only reacts to a real change
-// Narrow bottom = legend row (44) + gap (8) + controls (44) + gap (8) + attribution wrapped to two lines (88) + margin,
-// so Tierra del Fuego stays clear
-const PADDING_NARROW = { top: 64, right: 12, bottom: 204, left: 12 };
-const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 120 };
+// Narrow bottom = the folded attribution (44) + gap (8) + the sweep panel: its fence row (44), one-line reading (20),
+// their gap (12), padding and border (18) + margin, so Tierra del Fuego stays clear.
+// Right = the control column (44 at 12 from the edge) + a gap
+const PADDING_NARROW = { top: 64, right: 68, bottom: 160, left: 12 };
+// Left clears the sweep panel (320 wide at 12 from the edge)
+const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 352 };
+
+// A chosen fence also shows its row of creatures (44 + 8) on phones
+const FENCE_PADDING_NARROW = { ...PADDING_NARROW, bottom: PADDING_NARROW.bottom + 52 };
+// The detail: a 360 px panel at 12 from the right edge on desktop
+const DETAIL_RIGHT = 396;
+// On phones a sheet up to 60 % tall, resting on the folded attribution (44) 8 apart, so it stays in reach
+const SHEET_SHARE = 0.6;
+const SHEET_BOTTOM = 52;
+// The sheet stops this far from the top, however short the screen
+const MAP_ABOVE_SHEET = 160;
+
+// Below this, the sweep panel and the detail would leave the creature a sliver between them
+const MIN_VIEW_WIDTH = 320;
+
+function detailPadding(wide: boolean) {
+  if (wide) {
+    const roomy = window.innerWidth - PADDING_WIDE.left - DETAIL_RIGHT >= MIN_VIEW_WIDTH;
+    // Narrow desktops: the creature may sit under the sweep panel rather than vanish between the two
+    return { ...PADDING_WIDE, right: DETAIL_RIGHT, left: roomy ? PADDING_WIDE.left : PADDING_NARROW.left };
+  }
+  const sheet = Math.round(window.innerHeight * SHEET_SHARE) + SHEET_BOTTOM;
+  return { ...PADDING_NARROW, bottom: Math.min(sheet, window.innerHeight - MAP_ABOVE_SHEET) };
+}
+
+// Clear space kept between the lowest marker and the sweep panel
+const PANEL_GAP = 12;
+
+// On phones the sweep panel sits over the bottom of the map and grows with its reading (up to three lines),
+// so the fence is framed above the panel as measured, never above a guess
+function fencePadding(wide: boolean, detailOpen: boolean, panel: HTMLElement | null) {
+  if (detailOpen) return detailPadding(wide);
+  if (wide) return PADDING_WIDE;
+  const rect = panel?.getBoundingClientRect();
+  if (!rect || rect.height === 0) return FENCE_PADDING_NARROW;
+  const below = Math.round(window.innerHeight - rect.top) + PANEL_GAP;
+  return { ...FENCE_PADDING_NARROW, bottom: Math.max(FENCE_PADDING_NARROW.bottom, below) };
+}
+
+// Hover or focus on a creature: fetch its detail and the panel's code before the tap.
+// Imported on demand so the detail's fetching code stays out of the initial JS; one module, one cache
+function prepareCreature(id: number) {
+  preloadCreaturePanel();
+  void import("@/features/creature/use-creature").then((m) => m.prefetchCreature(id));
+}
+
+// Touch has no hover: once the map is up and the browser idle, the panel's code comes anyway
+function whenIdle(task: () => void): () => void {
+  if ("requestIdleCallback" in window) {
+    const handle = window.requestIdleCallback(task);
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = setTimeout(task, 1);
+  return () => clearTimeout(handle);
+}
+
+// The movement help opens from the left edge; on desktop it clears the sweep panel (20rem + the 0.5rem gap)
+const HELP_LEFT = "left-0 md:left-[20.5rem]";
+// One line per input where it fits, so the intro stays low and leaves the middle of the map clear.
+// 45rem keeps it off the detail panel (360 px at 12 from the right) on wide desktops
+const INTRO_WIDE = "md:w-max md:max-w-[max(24rem,calc(100vw-45rem))]";
 
 const WIDE_QUERY = "(min-width: 768px)";
+// Wide enough for the help beside the sweep panel (20.5rem + 24rem) and the detail (360 px at 12) to fit side by side
+const ROOMY_QUERY = "(min-width: 1120px)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-
-const ICON_PLUS = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M10 4v12M4 10h12" />
-  </svg>
-);
-
-const ICON_MINUS = (
-  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4 10h12" />
-  </svg>
-);
 
 function subscribeNothing() {
   return () => {};
@@ -59,16 +127,27 @@ function useWebGL2Support(): boolean | null {
   return useSyncExternalStore(subscribeNothing, supportsWebGL2, () => null);
 }
 
-function subscribeWide(onChange: () => void) {
-  const query = window.matchMedia(WIDE_QUERY);
+function subscribeMedia(media: string, onChange: () => void) {
+  const query = window.matchMedia(media);
   query.addEventListener("change", onChange);
   return () => query.removeEventListener("change", onChange);
 }
+
+const subscribeWide = (onChange: () => void) => subscribeMedia(WIDE_QUERY, onChange);
+const subscribeRoomy = (onChange: () => void) => subscribeMedia(ROOMY_QUERY, onChange);
 
 function useWideViewport(): boolean {
   return useSyncExternalStore(
     subscribeWide,
     () => window.matchMedia(WIDE_QUERY).matches,
+    () => false,
+  );
+}
+
+function useRoomyViewport(): boolean {
+  return useSyncExternalStore(
+    subscribeRoomy,
+    () => window.matchMedia(ROOMY_QUERY).matches,
     () => false,
   );
 }
@@ -90,22 +169,49 @@ function failure(): Phase {
   return navigator.onLine === false ? "offline" : "error";
 }
 
-// Sightings stream with the page; the map never waits for them (the catalog may be slow or down)
-export function MapStage({ sightings: pending }: { sightings?: Promise<readonly CompactSighting[]> }) {
-  const sightings = useResolved(pending);
+// Sightings stream with the page; the map never waits for them (the catalog may be slow or down).
+// null when the catalog failed
+export function MapStage({ sightings: pending }: { sightings?: Promise<SightingsPayload | null> }) {
+  const payload = useResolved(pending);
   const t = useTranslations("Map");
+  const tFences = useTranslations("Fences");
+  const tSweep = useTranslations("Sweep");
   const supported = useWebGL2Support();
   const wide = useWideViewport();
+  const roomy = useRoomyViewport();
   const online = useOnline();
   const [BaseMap, reloadMap] = useLazyWhenOnline(loadMap);
   const pointer = usePointerKind();
   const helpSeen = useHelpSeen();
   // A ref, not state: it changes mid-gesture and is only read when the help panel opens
   const detectedRef = useRef<MapInput | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
   const mapRef = useRef<MapHandle>(null);
   const helpRef = useRef<MapHelpButtonHandle>(null);
+  const columnRef = useRef<HTMLElement>(null);
   const regionRef = useRef<HTMLElement>(null);
+  const sweepPanelRef = useRef<HTMLDivElement>(null);
+  const { fence, detection, choose } = useFenceSweep(FENCES, payload);
+  // The creature open in the detail, as the URL says
+  const [focus, setFocus] = useState<number | null>(null);
+
+  const creatures = useMemo(
+    (): readonly SweepCreature[] =>
+      detection.status === "ready"
+        ? detection.traced.map(({ id, name, point }) => ({
+            id,
+            point,
+            label: tSweep("view", { name }),
+            sprite: spriteUrl(id),
+          }))
+        : [],
+    [detection, tSweep],
+  );
+
+  // Sprites start loading as soon as the creatures are known, not when their markers land a second later
+  useEffect(() => {
+    for (const { sprite } of creatures) preload(sprite, { as: "image", crossOrigin: "anonymous" });
+  }, [creatures]);
+
   const noticeRef = useRef<HTMLDivElement>(null);
   const skipRef = useRef<HTMLDivElement>(null);
   const [key, setKey] = useState(0);
@@ -119,6 +225,11 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
 
   const mounted = supported === true;
   const waiting = phase === "loading" || phase === "slow";
+
+  useEffect(() => {
+    if (phase !== "ready") return;
+    return whenIdle(preloadCreaturePanel);
+  }, [phase]);
 
   // Marked as soon as the flight can start: a remount (leaving the page and coming back) lands directly
   useEffect(() => {
@@ -183,10 +294,12 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
   const flying = mounted && flies && !introDone && (visible === "loading" || visible === "slow" || ready);
   // The map is ready while it flies, but its controls wait for the final frame
   const interactive = ready && !flying;
-  // On a phone the detail is a bottom sheet over the controls row, so the help waits under it until it closes.
+  // On a phone the detail is a bottom sheet: the control column steps aside until it closes, and the help with it.
+  // On a narrow desktop the help beside the sweep panel would run under the detail, so it waits too.
   // It also waits for the flight: it explains how to move a map the person cannot move yet
-  const sheetOver = detailOpen && !wide;
-  const showHelp = interactive && pointer !== null && !helpSeen && !sheetOver;
+  const sheetOver = focus !== null && !wide;
+  const helpCovered = focus !== null && !roomy;
+  const showHelp = interactive && pointer !== null && !helpSeen && !helpCovered;
 
   // Remembered even when storage fails: then it only lasts until the page reloads
   function dismissHelp() {
@@ -200,9 +313,9 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
     helpRef.current?.close();
   }
 
-  function handleDetailChange(open: boolean) {
-    setDetailOpen(open);
-    if (open && !wide) helpRef.current?.close();
+  function handleCreatureChange(id: number | null) {
+    setFocus(id);
+    if (id !== null && !roomy) helpRef.current?.close();
   }
 
   function handleInputDetected(input: MapInput) {
@@ -212,7 +325,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
   function acknowledgeHelp() {
     dismissHelp();
     // The focused Entendido unmounts; the help button is where this help lives from now on
-    helpRef.current?.focus();
+    if (wide) helpRef.current?.focus();
+    else columnRef.current?.querySelector<HTMLButtonElement>("[aria-haspopup]")?.focus();
   }
 
   function endIntro() {
@@ -233,6 +347,17 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
     mapRef.current?.skipIntro();
     focusMap();
   }
+
+  const sweep: SweepProps = {
+    // Only once there is something to trace: rings over a fence still loading would play twice, or for nothing
+    fence: detection.status === "ready" ? fence : null,
+    creatures,
+    focus,
+    fencePadding: () => fencePadding(wide, focus !== null, sweepPanelRef.current),
+    detailPadding: () => detailPadding(wide),
+    onSelect: openCreature,
+    onIntent: prepareCreature,
+  };
 
   // Keyed per state so an alert is inserted fresh (and announced) instead of mutating the status node
   const notice =
@@ -284,7 +409,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
           <LoadBoundary key={key} fallback={null} onError={() => setPhase(failure())}>
             <BaseMap
               ref={mapRef}
-              sightings={sightings}
+              sightings={payload?.sightings}
+              sweep={sweep}
               labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
               padding={wide ? PADDING_WIDE : PADDING_NARROW}
               intro={flies && !introDone}
@@ -301,58 +427,89 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
           {notice}
         </div>
       ) : null}
-      {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
-      {supported === false ? null : (
-        // Legend and help left, controls right: the same order on screen and for the keyboard.
-        // On phones they do not fit side by side: the legend keeps the first line and the controls wrap below
-        // Using any control counts as the first interaction, so it also closes the intro
-        <div className="relative flex w-full flex-wrap items-end justify-between gap-2" onClickCapture={dismissHelp}>
-          {/* Floats above the controls instead of joining the column, which would grow upward as a layout shift */}
-          {showHelp ? (
-            // Left, by the help button: on desktop the right side belongs to the creature detail
-            <div className="pointer-events-auto absolute left-0 bottom-full mb-2 w-full max-w-sm">
-              <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
-            </div>
-          ) : null}
-          {/* The help button keeps its visible label, which does not fit beside the map controls on a 360 px phone,
-              so it rides in the legend's row: both explain the map, the nav moves it */}
-          <div className="flex gap-2">
-            <HabitatLegend disabled={!interactive} />
-            <MapHelpButton
-              ref={helpRef}
-              lines={() => panelLines(pointer, detectedRef.current)}
-              disabled={!interactive}
-            />
+      {/* From md it is no box at all: the sweep panel floats and the controls row anchors the help */}
+      <div className="relative flex w-full flex-col gap-2 md:contents">
+        {/* Across the bottom on phones; a floating panel at the left on desktop. Usable without the map:
+            the list opens the detail even where WebGL is missing. Fences first, then what they found:
+            seen in the order the keyboard reaches them. Choosing a fence is a first interaction too: the
+            intro would otherwise sit over the creatures it brings */}
+        <div
+          ref={sweepPanelRef}
+          onClickCapture={dismissHelp}
+          className="pointer-events-auto relative flex w-full flex-col gap-3 rounded-panel border border-structure bg-surface p-2 md:absolute md:top-24 md:left-[max(0.75rem,env(safe-area-inset-left))] md:max-h-[calc(100dvh-12.5rem)] md:w-80 md:overflow-y-auto md:p-3">
+          <FencePicker
+            fences={FENCES.map(({ id }) => ({ id, name: tFences(id) }))}
+            active={fence?.id ?? null}
+            // Like the map controls it waits for the final frame, yet without a flight it works before the map does
+            // (the list opens the detail even without WebGL). The map itself ends a flight a sweep would land over
+            disabled={flying}
+            onChoose={choose}
+          />
+          <SweepReading
+            detection={detection}
+            fenceName={fence ? tFences(fence.id) : null}
+            onOpen={openCreature}
+            onIntent={prepareCreature}
+            onRetry={() => window.location.reload()}
+          />
+        </div>
+        {/* The row's room is kept from the server on, so its controls land without shifting the column; gone once the
+            map can never load. Using any control counts as the first interaction, so it also closes the intro */}
+        {supported === false ? null : (
+          <div
+            className="flex w-full items-end justify-between gap-2 max-md:hidden md:relative md:min-h-11"
+            onClickCapture={dismissHelp}
+          >
+            {/* Floats above the controls instead of joining the column, which would grow upward as a layout shift */}
+            {showHelp && wide ? (
+              // Left, by the help button: the right side belongs to the creature detail
+              <div className={`pointer-events-auto absolute bottom-full mb-2 w-full max-w-sm ${HELP_LEFT} ${INTRO_WIDE}`}>
+                <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
+              </div>
+            ) : null}
+            {wide ? (
+              <ControlRow
+                helpRef={helpRef}
+                disabled={!interactive}
+                onZoomIn={() => mapRef.current?.zoomIn()}
+                onZoomOut={() => mapRef.current?.zoomOut()}
+                onReset={() => mapRef.current?.resetView()}
+                helpLines={() => panelLines(pointer, detectedRef.current)}
+                // Reopened beside a detail that leaves no room, it rises over the sweep panel instead
+                helpPanelClassName={helpCovered ? "left-0" : HELP_LEFT}
+              />
+            ) : null}
           </div>
-          <nav aria-label={t("controls")} className="pointer-events-auto relative ml-auto flex shrink-0 gap-2">
-          <Button
-            variant="secondary"
-            aria-label={t("zoomIn")}
-            disabled={!interactive}
-            onClick={() => mapRef.current?.zoomIn()}
-            className="px-0!"
-          >
-            {ICON_PLUS}
-          </Button>
-          <Button
-            variant="secondary"
-            aria-label={t("zoomOut")}
-            disabled={!interactive}
-            onClick={() => mapRef.current?.zoomOut()}
-            className="px-0!"
-          >
-            {ICON_MINUS}
-          </Button>
-          <Button variant="secondary" disabled={!interactive} onClick={() => mapRef.current?.resetView()}>
-            {t("reset")}
-          </Button>
-          </nav>
+        )}
+      </div>
+      {/* Phones: the free map above the sweep panel, with the control column centred at its right edge.
+          After the panel in the DOM, so the keyboard reaches the fences and the reading first; first on screen */}
+      {supported === false ? null : (
+        // Any of its buttons counts as the first interaction, so it also closes the intro
+        <div
+          className="order-first flex min-h-0 w-full flex-1 items-center justify-end pt-16 md:hidden"
+          onClickCapture={dismissHelp}
+        >
+          {/* Out of the way while the detail sheet is up; the map itself still pinches and drags */}
+          {wide || sheetOver ? null : (
+            <ControlColumn
+              ref={columnRef}
+              disabled={!interactive}
+              onZoomIn={() => mapRef.current?.zoomIn()}
+              onZoomOut={() => mapRef.current?.zoomOut()}
+              onReset={() => mapRef.current?.resetView()}
+              helpLines={() => panelLines(pointer, detectedRef.current)}
+              intro={
+                showHelp ? <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} stacked /> : null
+              }
+            />
+          )}
         </div>
       )}
       {/* Its own boundary: reading the URL must not keep the map and its controls out of the prerender.
           Independent of the map's phase, so the detail shows even when the map cannot load */}
       <Suspense fallback={null}>
-        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} onOpenChange={handleDetailChange} />
+        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} onChange={handleCreatureChange} />
       </Suspense>
     </>
   );

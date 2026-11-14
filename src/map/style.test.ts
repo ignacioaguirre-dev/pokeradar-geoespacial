@@ -18,6 +18,8 @@ const COLORS: MapColors = {
   label: "marker-label",
   city: "marker-city",
   sighting: "marker-sighting",
+  sweep: "marker-sweep",
+  trace: "marker-trace",
   space: "marker-space",
   biome: {
     forest: "marker-forest",
@@ -48,7 +50,7 @@ const SIGHTINGS: CompactSighting[] = [
 const style = buildStyle(COLORS, HABITATS, SIGHTINGS);
 const layers = style.layers;
 
-const OWN_SOURCES = ["habitats", "sightings"];
+const OWN_SOURCES = ["habitats", "sightings", "sweep-fence", "sweep-rings", "sweep-traces"];
 
 describe("buildStyle", () => {
   it("every layer reads an OpenMapTiles source-layer", () => {
@@ -84,6 +86,12 @@ describe("buildStyle", () => {
       if (/color$/.test(key)) {
         const values = Array.isArray(value) ? value.flat(Infinity) : [value];
         for (const v of values) if (!notColors.has(String(v))) used.add(String(v));
+      }
+      // A gradient's stops are a given color with an #rrggbbaa alpha suffix
+      if (/gradient$/.test(key) && Array.isArray(value)) {
+        for (const v of value.flat(Infinity)) {
+          if (typeof v === "string" && v.startsWith("marker-")) used.add(v.replace(/(66|00)$/, ""));
+        }
       }
       return value;
     });
@@ -178,6 +186,50 @@ describe("habitat layers", () => {
   it("splits sea from land by the habitat property", () => {
     expect(land && "filter" in land ? land.filter : undefined).toEqual(["!=", ["get", "habitat"], "sea"]);
     expect(sea && "filter" in sea ? sea.filter : undefined).toEqual(["==", ["get", "habitat"], "sea"]);
+  });
+});
+
+describe("sweep layers", () => {
+  const index = (id: string) => layers.findIndex((l) => l.id === id);
+  const SWEEP = ["sweep-ring-0", "sweep-ring-1", "sweep-ring-2", "sweep-fence", "sweep-traces"];
+
+  // Always present, even empty: a sweep only needs setData and paint changes, never a style edit
+  it("starts with empty sources, the traces measuring their own length", () => {
+    const empty = { type: "FeatureCollection", features: [] };
+    expect(style.sources["sweep-fence"]).toEqual({ type: "geojson", data: empty });
+    expect(style.sources["sweep-rings"]).toEqual({ type: "geojson", data: empty });
+    expect(style.sources["sweep-traces"]).toEqual({ type: "geojson", data: empty, lineMetrics: true });
+  });
+
+  it("draws over the sightings and under every label, traces on top", () => {
+    const positions = SWEEP.map(index);
+    expect(positions.every((p) => p > index("sightings"))).toBe(true);
+    expect(positions.every((p) => p < index("water-name"))).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  it("outlines the fence and the rings in the sweep color, hidden until a sweep runs", () => {
+    const fence = layers.find((l) => l.id === "sweep-fence");
+    if (fence?.type !== "line") throw new Error("missing sweep-fence line");
+    expect(fence.paint?.["line-color"]).toBe("marker-sweep");
+    for (const id of ["sweep-ring-0", "sweep-ring-1", "sweep-ring-2"]) {
+      const ring = layers.find((l) => l.id === id);
+      if (ring?.type !== "circle") throw new Error(`missing ${id} circle`);
+      expect(ring.paint?.["circle-stroke-color"], id).toBe("marker-sweep");
+      expect(ring.paint?.["circle-opacity"], id).toBe(0);
+      expect(ring.paint?.["circle-stroke-opacity"], id).toBe(0);
+      // Driven frame by frame: MapLibre's default 300 ms easing would drag every step behind the curve
+      expect(ring.paint?.["circle-radius-transition"], id).toEqual({ duration: 0, delay: 0 });
+      expect(ring.paint?.["circle-stroke-opacity-transition"], id).toEqual({ duration: 0, delay: 0 });
+    }
+  });
+
+  it("draws the traces in the habitat ochre through a gradient, clear at first", () => {
+    const traces = layers.find((l) => l.id === "sweep-traces");
+    if (traces?.type !== "line") throw new Error("missing sweep-traces line");
+    expect(traces.paint?.["line-gradient"]).toEqual([
+      "interpolate", ["linear"], ["line-progress"], 0, "marker-trace00", 1, "marker-trace00",
+    ]);
   });
 });
 

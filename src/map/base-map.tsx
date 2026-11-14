@@ -3,7 +3,7 @@
 // Static on purpose: next/dynamic already defers this whole file, so import() here would chain a second download
 import { type GeoJSONSource, Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef } from "react";
+import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef, useState } from "react";
 import { ARGENTINA_BOUNDS, MAX_BOUNDS, MIN_ZOOM } from "./argentina";
 import { readMapColors } from "./colors";
 import type { CompactSighting } from "@/domain/sightings/compact";
@@ -11,7 +11,11 @@ import type { HabitatCollection } from "./habitats";
 import { SIGHTINGS_SOURCE, toSightingCollection } from "./sightings";
 import { INTRO_PROJECTION, type IntroFlight, startIntroFlight } from "./intro-flight";
 import { buildStyle } from "./style";
+import { CONTROL_MOVE } from "./sweep";
+import { type SweepProps, useSweep } from "./use-sweep";
 import { type GestureState, classifyWheel, toPixels, wheelAction, wheelZoomDelta } from "./wheel-gesture";
+
+export type { SweepCreature, SweepFence, SweepProps } from "./use-sweep";
 
 // Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
 setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
@@ -37,6 +41,8 @@ type BaseMapProps = {
   sightings?: readonly CompactSighting[];
   labels: { region: string; keyboardHelp: string };
   padding: Padding;
+  // The chosen fence and what it detected; the sweep logic lives in ./use-sweep
+  sweep?: SweepProps;
   // Read when the map is created: fly in from space instead of opening on the final frame.
   // Later it only keeps the space background behind the globe until the page reports the flight over
   intro?: boolean;
@@ -56,6 +62,7 @@ export function BaseMap({
   sightings,
   labels,
   padding,
+  sweep,
   intro = false,
   onIntroEnd,
   onStatusChange,
@@ -69,6 +76,8 @@ export function BaseMap({
   const helpId = useId();
   // The sightings the map's source holds, so a re-render with the same list does not reload it
   const appliedSightings = useRef<readonly CompactSighting[] | undefined>(undefined);
+  // Set once the style loads: the sweep draws on sources that exist only from then on
+  const [loadedMap, setLoadedMap] = useState<MapLibreMap | null>(null);
   // One list per map, read at call time: its matches follows the OS setting without remounting
   const reducedMotionRef = useRef<MediaQueryList | null>(null);
 
@@ -153,6 +162,7 @@ export function BaseMap({
       loaded = true;
       writeZoom();
       syncSightings();
+      setLoadedMap(map);
       if (!failed) reportStatus("ready");
     });
     // Only a style or source failure before load breaks the map; after load, or for a single tile
@@ -244,6 +254,9 @@ export function BaseMap({
 
   useEffect(() => syncSightings(), [sightings]);
 
+  // A sweep moves the camera, so a flight still running ends first instead of snapping back over it
+  useSweep(loadedMap, sweep, padding, () => flightRef.current?.cancel());
+
   const { top, right, bottom, left } = padding;
   useEffect(() => {
     mapRef.current?.setPadding({ top, right, bottom, left });
@@ -255,19 +268,24 @@ export function BaseMap({
       const map = mapRef.current;
       if (!map) return;
       const zoom = map.getZoom() + delta;
-      if (prefersReducedMotion()) map.jumpTo({ zoom });
-      else map.easeTo({ zoom });
+      if (prefersReducedMotion()) map.jumpTo({ zoom }, CONTROL_MOVE);
+      else map.easeTo({ zoom }, CONTROL_MOVE);
     }
     return {
       zoomIn: () => zoomBy(1),
       zoomOut: () => zoomBy(-1),
+      // Absolute: a sweep or a creature may have left its own padding on the map
       resetView: () => {
-        mapRef.current?.fitBounds(ARGENTINA_BOUNDS, { animate: !prefersReducedMotion() });
+        mapRef.current?.fitBounds(ARGENTINA_BOUNDS, {
+          padding: { top, right, bottom, left },
+          absolutePadding: true,
+          animate: !prefersReducedMotion(),
+        }, CONTROL_MOVE);
       },
       skipIntro: () => flightRef.current?.cancel(),
       focus: () => mapRef.current?.getCanvas().focus({ preventScroll: true }),
     };
-  }, []);
+  }, [top, right, bottom, left]);
 
   return (
     <>

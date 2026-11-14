@@ -12,23 +12,27 @@ import { LoadBoundary, useLazyWhenOnline } from "./load-when-online";
 // motion and the panel stay out of the initial JS: the chunk is fetched the first time a creature opens
 const loadPanel = () => import("./detail-panel").then((m) => m.DetailPanel);
 
+// On intent (hover, focus) or when the browser is idle: the chunk is ready before the first tap
+export function preloadCreaturePanel(): void {
+  void loadPanel();
+}
+
 type Props = {
   wide: boolean;
   fallbackFocus(): HTMLElement | null;
-  // Whether a creature is open, for what shares the screen with the panel
-  onOpenChange?(open: boolean): void;
+  // The creature in the URL, so the map can fly to it and what shares the screen makes room; null once it closes
+  onChange?(id: number | null): void;
 };
 
 // The URL is the panel's state: a shared ?creature= link opens it, and back (popstate) closes it
-export function CreatureRoute({ wide, fallbackFocus, onOpenChange }: Props) {
+export function CreatureRoute({ wide, fallbackFocus, onChange }: Props) {
   const t = useTranslations("Creature");
   const params = useSearchParams();
   const [DetailPanel, reloadPanel] = useLazyWhenOnline(loadPanel);
   const [attempt, setAttempt] = useState(0);
   const id = parseCreatureId(params.get(CREATURE_PARAM));
-  const open = id !== null;
-  const reportOpen = useEffectEvent((value: boolean) => onOpenChange?.(value));
-  useEffect(() => reportOpen(open), [open]);
+  const report = useEffectEvent((current: number | null) => onChange?.(current));
+  useEffect(() => report(id), [id]);
   // Once opened the panel stays mounted, so closing can play its exit
   const [opened, setOpened] = useState(false);
   if (id !== null && !opened) setOpened(true);

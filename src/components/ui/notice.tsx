@@ -9,14 +9,16 @@ type Props = {
   title: string;
   children?: ReactNode;
   action?: { label: string; onActivate: () => void };
+  stacked?: boolean;
   live?: boolean;
 };
 
-export function Notice({ variant, title, children, action, live }: Props) {
+export function Notice({ variant, title, children, action, stacked, live }: Props) {
   return (
     <NoticeFrame
       variant={variant}
       title={title}
+      stacked={stacked}
       live={live}
       trailing={
         action ? (

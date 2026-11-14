@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { render, screen, within } from "@/testing/render";
 import type { MapInput, MapStatus } from "@/map/base-map";
 import { createMapHelpStore, MAP_HELP_SEEN_KEY, type MapHelpStore } from "@/features/map-help/storage";
+import { preloadCreaturePanel } from "./creature-route";
 import { introPlayed } from "./intro-played";
 import { MapStage } from "./map-stage";
 
@@ -18,6 +19,16 @@ const fake = vi.hoisted(() => ({
   padding: null as { top: number; right: number; bottom: number; left: number } | null,
   habitats: null as { features: { properties: { habitat: string } }[] } | null,
   sightings: undefined as readonly (readonly [number, number, number])[] | undefined,
+  sweep: undefined as
+    | {
+        fence: { id: string } | null;
+        creatures: readonly { id: number; label: string; sprite: string }[];
+        focus: number | null;
+        onSelect(id: number): void;
+        fencePadding(): Padding;
+        detailPadding(): Padding;
+      }
+    | undefined,
   intro: undefined as boolean | undefined,
   // The latest intro prop, while `intro` keeps the one the map was created with
   introNow: undefined as boolean | undefined,
@@ -34,6 +45,7 @@ vi.mock("@/map/base-map", async () => {
   function BaseMap({
     habitats,
     sightings,
+    sweep,
     padding,
     intro,
     onIntroEnd,
@@ -44,6 +56,7 @@ vi.mock("@/map/base-map", async () => {
   }: {
     habitats: typeof fake.habitats;
     sightings?: typeof fake.sightings;
+    sweep?: typeof fake.sweep;
     padding: Padding;
     intro?: boolean;
     onIntroEnd?(): void;
@@ -60,6 +73,7 @@ vi.mock("@/map/base-map", async () => {
       fake.padding = padding;
       fake.habitats = habitats;
       fake.sightings = sightings;
+      fake.sweep = sweep;
       fake.onIntroEnd = onIntroEnd;
       fake.introNow = intro;
     });
@@ -110,12 +124,13 @@ vi.mock("@/features/map-help/storage", async (importOriginal) => {
 
 vi.mock("@/map/supports-webgl2", () => ({ supportsWebGL2: () => fake.webgl2 }));
 // The detail reads the URL through the Next router, which these tests do not mount
-const route = vi.hoisted(() => ({ onOpenChange: null as ((open: boolean) => void) | null }));
+const route = vi.hoisted(() => ({ onChange: null as ((id: number | null) => void) | null }));
 vi.mock("./creature-route", () => ({
-  CreatureRoute: ({ onOpenChange }: { onOpenChange?(open: boolean): void }) => {
-    route.onOpenChange = onOpenChange ?? null;
+  CreatureRoute: ({ onChange }: { onChange?(id: number | null): void }) => {
+    route.onChange = onChange ?? null;
     return null;
   },
+  preloadCreaturePanel: vi.fn(),
 }));
 
 const WIDE = "(min-width: 768px)";
@@ -166,9 +181,15 @@ function click(name: string) {
 }
 
 describe("MapStage", () => {
-  // The first import transforms the habitat GeoJSON on disk, slower than the microtask flush the tests rely on
+  // The first import transforms the habitat GeoJSON on disk (and the controls' chunks, the sheet's motion), slower
+  // than the microtask flush the tests rely on
   beforeAll(async () => {
-    await import("./habitat-map");
+    await Promise.all([
+      import("./habitat-map"),
+      import("./control-column"),
+      import("./control-row"),
+      import("@/components/ui/sheet"),
+    ]);
   });
 
   beforeEach(() => {
@@ -179,6 +200,7 @@ describe("MapStage", () => {
     fake.padding = null;
     fake.habitats = null;
     fake.sightings = undefined;
+    fake.sweep = undefined;
     fake.webgl2 = true;
     fake.chunkFailures = 0;
     fake.chunk = null;
@@ -439,7 +461,7 @@ describe("MapStage", () => {
   });
 
   it("hands the sightings to the map once they resolve", async () => {
-    render(<MapStage sightings={Promise.resolve([[25, -58.4, -34.6] as const])} />);
+    render(<MapStage sightings={Promise.resolve({ sightings: [[25, -58.4, -34.6] as const], slugs: [] })} />);
     await flush();
     expect(fake.sightings).toEqual([[25, -58.4, -34.6]]);
   });
@@ -464,12 +486,173 @@ describe("MapStage", () => {
 
   it("updates the map padding when the viewport widens", async () => {
     await renderStage();
-    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 204, left: 12 });
+    expect(fake.padding).toEqual({ top: 64, right: 68, bottom: 160, left: 12 });
     wide = true;
     act(() => mediaListeners.forEach((listener) => listener()));
-    expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 120 });
+    expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 352 });
     expect(fake.mounts).toBe(1);
   });
+
+  describe("sweep", () => {
+    // Two creatures inside Esteros del Iberá, one far away in Patagonia
+    const PAYLOAD = {
+      sightings: [
+        [25, -57.4, -28.8],
+        [7, -57.1, -29.2],
+        [41, -69, -46.5],
+      ] as const,
+      slugs: Object.assign(Array<string>(386).fill("x"), { 24: "pikachu", 6: "squirtle", 40: "zubat" }),
+    };
+
+    afterEach(() => window.history.replaceState(null, "", "/"));
+
+    it("lists the eight fences, none chosen, and says what to do", async () => {
+      await renderStage();
+      const group = screen.getByRole("group", { name: "Cercas" });
+      expect(within(group).getAllByRole("button", { pressed: false })).toHaveLength(8);
+      expect(screen.getByText("Elegí una cerca para barrerla.")).toBeInTheDocument();
+      expect(fake.sweep?.fence).toBeNull();
+    });
+
+    it("choosing a fence sweeps it: the map gets the fence and its creatures, the reading the count", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(screen.getByRole("button", { name: "Esteros del Iberá", pressed: true })).toBeInTheDocument();
+      expect(fake.sweep?.fence?.id).toBe("ibera");
+      expect(fake.sweep?.creatures.map((c) => [c.id, c.label])).toEqual([
+        [25, "Ver Pikachu"],
+        [7, "Ver Squirtle"],
+      ]);
+      expect(fake.sweep?.creatures[0].sprite).toMatch(/\/25\.png$/);
+      expect(screen.getByText(/criaturas detectadas/).closest("[role=status]")).toHaveTextContent(
+        "2 criaturas detectadas",
+      );
+    });
+
+    it("a creature from the list or a marker opens its detail in the URL", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      click("Ver Squirtle");
+      expect(window.location.search).toBe("?creature=7");
+      act(() => fake.sweep?.onSelect(25));
+      expect(window.location.search).toBe("?creature=25");
+    });
+
+    it("frames the fence above the reading on phones and beside the panel on desktop", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(fake.sweep?.fencePadding()).toEqual({ top: 64, right: 68, bottom: 212, left: 12 });
+      wide = true;
+      act(() => mediaListeners.forEach((listener) => listener()));
+      expect(fake.sweep?.fencePadding()).toEqual({ top: 96, right: 120, bottom: 72, left: 352 });
+    });
+
+    // At 768–1100 px both side panels would leave the fence a sliver: the creature gets the room instead
+    it("with the detail open on a narrow desktop, the sweep panel side gives way", async () => {
+      wide = true;
+      window.innerWidth = 900;
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      const padding = fake.sweep!.detailPadding();
+      expect(900 - padding.left - padding.right).toBeGreaterThanOrEqual(320);
+      window.innerWidth = 1280;
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 96, right: 396, bottom: 72, left: 352 });
+    });
+
+    // The sheet rests on the folded attribution and stops 160 px from the top: the creature lands above it
+    it("on phones the detail leaves the creature above the sheet", async () => {
+      window.innerHeight = 844;
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 558, left: 12 });
+      window.innerHeight = 500;
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 68, bottom: 340, left: 12 });
+      window.innerHeight = 768;
+    });
+
+    // The panel grows with the reading (three lines on a phone): a fixed guess would leave creatures under it
+    it("on phones frames the fence above the sweep panel as tall as it really is", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      const panel = screen.getByRole("group", { name: "Cercas" }).parentElement!;
+      vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 418, height: 410 } as DOMRect);
+      window.innerHeight = 844;
+      expect(fake.sweep?.fencePadding().bottom).toBe(844 - 418 + 12);
+    });
+
+    it("an empty fence says so", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Mar Argentino");
+      expect(screen.getByText("Mar Argentino: ninguna criatura detectada. Probá con otra cerca.")).toBeInTheDocument();
+      expect(fake.sweep?.creatures).toEqual([]);
+    });
+
+    it("when the creatures could not load, the sweep says so with a retry", async () => {
+      render(<MapStage sightings={Promise.resolve(null)} />);
+      await flush();
+      click("Pampa húmeda");
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("No pudimos cargar las criaturas.");
+      expect(within(alert).getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    });
+
+    // Rings with nothing to trace would play once empty and again when the creatures arrive
+    it("the sweep waits for the sightings before it plays", async () => {
+      let resolve: (payload: typeof PAYLOAD) => void = () => {};
+      render(<MapStage sightings={new Promise((r) => (resolve = r))} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(screen.getByText("Buscando criaturas…")).toBeInTheDocument();
+      expect(fake.sweep?.fence).toBeNull();
+      await act(async () => resolve(PAYLOAD));
+      await flush();
+      expect(fake.sweep?.fence?.id).toBe("ibera");
+      expect(fake.sweep?.creatures).toHaveLength(2);
+    });
+
+    it("without sightings the sweep never plays", async () => {
+      render(<MapStage sightings={Promise.resolve(null)} />);
+      await flush();
+      click("Pampa húmeda");
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(fake.sweep?.fence).toBeNull();
+    });
+
+    // Touch screens never hover: the detail's code comes once the map is up and the browser idle
+    it("loads the detail panel's code once the map is ready", async () => {
+      vi.mocked(preloadCreaturePanel).mockClear();
+      await renderStage();
+      await advance(10);
+      expect(preloadCreaturePanel).not.toHaveBeenCalled();
+      report("ready");
+      await advance(10);
+      expect(preloadCreaturePanel).toHaveBeenCalledOnce();
+    });
+
+    // Only the flight holds them back: a fence chosen while the map loads plays once the map is ready
+    it("without a flight the fences work while the map still loads", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      expect(region()).toHaveAttribute("aria-busy", "true");
+      click("Esteros del Iberá");
+      expect(fake.sweep?.fence?.id).toBe("ibera");
+    });
+
+    // Without WebGL there is no map, but the list still reaches every creature
+    it("works without the map: the picker and the list stay", async () => {
+      fake.webgl2 = false;
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(screen.getByRole("button", { name: "Ver Pikachu" })).toBeInTheDocument();
+    });
+  });
+
   describe("movement help", () => {
     const TOUCH = "Arrastrá con un dedo para moverte · Pellizcá para acercar o alejar";
     const TOUCHPAD = "Touchpad: dos dedos para moverte · pellizcá para acercar";
@@ -492,6 +675,22 @@ describe("MapStage", () => {
       expect(intro()).toBeNull();
       report("ready");
       expect(intro()).not.toBeNull();
+    });
+
+    // On desktop the intro sits beside the sweep panel, where the creatures of a fence land
+    it("closes when a fence is chosen, like any first interaction", async () => {
+      await readyStage();
+      click("Esteros del Iberá");
+      expect(intro()).toBeNull();
+      expect(localStorage.getItem(SEEN_KEY)).not.toBeNull();
+    });
+
+    // Fences, then what they found, then the help and the map controls: the order on screen on a phone
+    it("comes after the fences in the keyboard order", async () => {
+      await readyStage();
+      const lastFence = screen.getByRole("button", { name: "Selva misionera" });
+      const dismiss = screen.getByRole("button", { name: "Entendido" });
+      expect(lastFence.compareDocumentPosition(dismiss) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it("shows touchpad, mouse and keyboard on a computer", async () => {
@@ -562,8 +761,9 @@ describe("MapStage", () => {
       expect(screen.queryByRole("button", { name: "Cómo moverse" })).not.toBeInTheDocument();
     });
 
-    // With its visible label it does not fit beside the map controls on a 360 px phone, so it joins the legend's row
+    // On desktop it rides in the legend's row, apart from the controls that move the map
     it("the help button sits right after the legend and waits for the map", async () => {
+      wide = true;
       await renderStage();
       const button = screen.getByRole("button", { name: "Cómo moverse" });
       const legend = screen.getByRole("button", { name: "Hábitats" });
@@ -575,6 +775,7 @@ describe("MapStage", () => {
     });
 
     it("closes the open help panel with the first move of the map, like the intro", async () => {
+      wide = true;
       localStorage.setItem(SEEN_KEY, "1");
       await readyStage();
       click("Cómo moverse");
@@ -586,35 +787,58 @@ describe("MapStage", () => {
     // On a phone the detail is a bottom sheet over the controls row; the help would peek out above it
     it("steps aside while the creature detail covers the controls on a phone", async () => {
       await readyStage();
-      act(() => route.onOpenChange?.(true));
+      act(() => route.onChange?.(25));
       expect(intro()).toBeNull();
-      act(() => route.onOpenChange?.(false));
+      act(() => route.onChange?.(null));
       expect(intro()).not.toBeNull();
       expect(localStorage.getItem(SEEN_KEY)).toBeNull();
     });
 
-    it("closes the help panel when the creature detail opens on a phone", async () => {
+    it("closes the help sheet when the creature detail opens on a phone", async () => {
       localStorage.setItem(SEEN_KEY, "1");
       await readyStage();
       click("Cómo moverse");
-      act(() => route.onOpenChange?.(true));
-      expect(screen.queryByRole("region", { name: "Cómo moverse" })).not.toBeInTheDocument();
+      await flush();
+      expect(screen.getByRole("dialog", { name: "Cómo moverse" })).toBeInTheDocument();
+      act(() => route.onChange?.(25));
+      await advance(1_000);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     // On desktop the detail floats at the top right and the help stays at the bottom left
-    it("stays beside the creature detail on desktop", async () => {
+    it("stays beside the creature detail on a roomy desktop", async () => {
       wide = true;
+      matching.add("(min-width: 1120px)");
       await readyStage();
-      act(() => route.onOpenChange?.(true));
+      act(() => route.onChange?.(25));
       expect(intro()).not.toBeNull();
     });
 
-    it("reopens the help with the detected input first", async () => {
+    // Between 768 and 1120 px the help beside the sweep panel would run under the detail
+    it("waits on a narrow desktop while the creature detail is open, and closes its open panel", async () => {
+      wide = true;
+      await readyStage();
+      act(() => route.onChange?.(25));
+      expect(intro()).toBeNull();
+      act(() => route.onChange?.(null));
+      expect(intro()).not.toBeNull();
+      click("Entendido");
+      click("Cómo moverse");
+      act(() => route.onChange?.(25));
+      expect(screen.queryByRole("region", { name: "Cómo moverse" })).not.toBeInTheDocument();
+    });
+
+    it.each([
+      { device: "phone", role: "dialog" },
+      { device: "desktop", role: "region" },
+    ] as const)("reopens the help with the detected input first on a $device", async ({ device, role }) => {
+      wide = device === "desktop";
       await readyStage();
       act(() => fake.onInputDetected?.("mouse"));
       click("Cómo moverse");
+      await flush();
       expect(intro()).toBeNull();
-      const panel = screen.getByRole("region", { name: "Cómo moverse" });
+      const panel = screen.getByRole(role, { name: "Cómo moverse" });
       expect(within(panel).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
         MOUSE,
         TOUCHPAD,
@@ -624,6 +848,81 @@ describe("MapStage", () => {
     });
   });
 
+
+  describe("control column on a phone", () => {
+    const COLUMN = ["Acercar", "Alejar", "Cómo moverse", "Ver Argentina", "Hábitats"];
+
+    async function readyStage() {
+      localStorage.setItem(MAP_HELP_SEEN_KEY, "1");
+      await renderStage();
+      report("ready");
+    }
+
+    function column() {
+      return screen.getByRole("navigation", { name: "Controles del mapa" });
+    }
+
+    it("stacks zoom, help, the country and the habitats, all waiting for the map", async () => {
+      await renderStage();
+      const buttons = within(column()).getAllByRole("button");
+      expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual(COLUMN);
+      for (const button of buttons) expect(button).toBeDisabled();
+      report("ready");
+      for (const button of within(column()).getAllByRole("button")) expect(button).toBeEnabled();
+    });
+
+    it("zoom and the country act on the map at once", async () => {
+      await readyStage();
+      click("Acercar");
+      click("Alejar");
+      click("Ver Argentina");
+      expect(fake.handle.zoomIn).toHaveBeenCalledOnce();
+      expect(fake.handle.zoomOut).toHaveBeenCalledOnce();
+      expect(fake.handle.resetView).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("Hábitats opens a sheet with the legend, and closing it gives the focus back", async () => {
+      await readyStage();
+      const layers = screen.getByRole("button", { name: "Hábitats" });
+      fireEvent.click(layers);
+      await flush();
+      const sheet = screen.getByRole("dialog", { name: "Hábitats" });
+      expect(layers).toHaveAttribute("aria-expanded", "true");
+      expect(within(sheet).getAllByRole("listitem")).toHaveLength(6);
+      fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
+      await advance(1_000);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(layers).toHaveFocus();
+    });
+
+    it("the first visit's help sits beside the info mark, inside the column", async () => {
+      localStorage.clear();
+      await renderStage();
+      report("ready");
+      expect(within(column()).getByRole("status")).toHaveTextContent("Cómo moverse");
+    });
+
+    it("steps aside while the creature detail is open, and comes back after", async () => {
+      await readyStage();
+      act(() => route.onChange?.(25));
+      expect(screen.queryByRole("navigation", { name: "Controles del mapa" })).not.toBeInTheDocument();
+      act(() => route.onChange?.(null));
+      expect(column()).toBeInTheDocument();
+    });
+
+    it("a viewport that widens drops the open sheet for the desktop row", async () => {
+      await readyStage();
+      click("Hábitats");
+      await flush();
+      expect(screen.getByRole("dialog", { name: "Hábitats" })).toBeInTheDocument();
+      wide = true;
+      act(() => mediaListeners.forEach((listener) => listener()));
+      await advance(1_000);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Ver Argentina" })).toHaveTextContent("Ver Argentina");
+    });
+  });
 
   describe("entry flight", () => {
     const SKIP = "Saltar el vuelo de entrada";
@@ -641,6 +940,24 @@ describe("MapStage", () => {
       expect(fake.intro).toBe(true);
       const skip = screen.getByRole("button", { name: SKIP });
       expect(skip).toHaveTextContent("Saltar");
+    });
+
+    it("keeps the fences disabled while flying, like the map controls", async () => {
+      await renderStage();
+      report("ready");
+      const fences = within(screen.getByRole("group", { name: "Cercas" })).getAllByRole("button");
+      expect(fences).toHaveLength(8);
+      for (const fence of fences) expect(fence).toBeDisabled();
+      endFlight();
+      for (const fence of fences) expect(fence).toBeEnabled();
+    });
+
+    it("a skipped flight hands the fences over at once", async () => {
+      fake.handle.skipIntro = vi.fn(() => fake.onIntroEnd?.());
+      await renderStage();
+      report("ready");
+      act(() => click(SKIP));
+      expect(screen.getByRole("button", { name: "Esteros del Iberá" })).toBeEnabled();
     });
 
     it("keeps the controls disabled while flying, even once ready", async () => {

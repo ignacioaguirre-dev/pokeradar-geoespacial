@@ -42,7 +42,36 @@ function isCreatureDetail(value: unknown): value is CreatureDetail {
   );
 }
 
-type Settled = { key: string; data?: CreatureDetail; error?: CreatureError };
+type Result = { data?: CreatureDetail; error?: CreatureError };
+type Settled = Result & { key: string };
+
+// Prefetches in flight: opening the creature meanwhile waits for them instead of asking twice
+const inflight = new Map<number, Promise<Result>>();
+// Opened creatures still loading: their own abortable request already fills the cache
+const opening = new Set<number>();
+
+// Never rejects: every failure is a result, and a good answer lands in the cache
+async function request(id: number, signal?: AbortSignal): Promise<Result> {
+  try {
+    const response = await fetch(`/api/creatures/${id}`, { signal });
+    if (response.status === 404) return { error: "not-found" };
+    if (!response.ok) return { error: "unavailable" };
+    const body: unknown = await response.json();
+    // Another creature's detail under this id is as wrong as a broken shape
+    if (!isCreatureDetail(body) || body.id !== id) return { error: "unavailable" };
+    cache.set(id, body);
+    return { data: body };
+  } catch {
+    return { error: "unavailable" };
+  }
+}
+
+// On intent (hover, focus) before the tap. Not abortable: the answer is worth keeping either way
+export function prefetchCreature(id: number): void {
+  if (cache.has(id) || inflight.has(id) || opening.has(id)) return;
+  const pending = request(id).finally(() => inflight.delete(id));
+  inflight.set(id, pending);
+}
 
 export function useCreature(id: number | null): CreatureState {
   const [attempt, setAttempt] = useState(0);
@@ -60,21 +89,16 @@ export function useCreature(id: number | null): CreatureState {
   useEffect(() => {
     if (id === null || cache.has(id)) return;
     const controller = new AbortController();
-    const settle = (result: Omit<Settled, "key">) => {
+    const shared = inflight.get(id);
+    if (!shared) opening.add(id);
+    (shared ?? request(id, controller.signal)).then((result) => {
+      opening.delete(id);
       if (!controller.signal.aborted) setSettled({ key, ...result });
+    });
+    return () => {
+      opening.delete(id);
+      controller.abort();
     };
-    fetch(`/api/creatures/${id}`, { signal: controller.signal })
-      .then(async (response) => {
-        if (response.status === 404) return settle({ error: "not-found" });
-        if (!response.ok) return settle({ error: "unavailable" });
-        const body: unknown = await response.json();
-        // Another creature's detail under this id is as wrong as a broken shape
-        if (!isCreatureDetail(body) || body.id !== id) return settle({ error: "unavailable" });
-        cache.set(id, body);
-        settle({ data: body });
-      })
-      .catch(() => settle({ error: "unavailable" }));
-    return () => controller.abort();
   }, [id, key]);
 
   const retry = useCallback(() => setAttempt((a) => a + 1), []);

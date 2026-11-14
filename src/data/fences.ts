@@ -1,8 +1,11 @@
 import type { Fence } from "@/domain/geometry/types";
 import type { AreaHabitat } from "@/domain/habitat/types";
 
-// The habitat its centroid falls in; the visible name lives in the Fences namespace of next-intl
-export type PresetFence = Fence & { readonly habitat: AreaHabitat };
+// Keys of the Fences namespace in next-intl, where each visible name lives
+export type FenceId = "yungas" | "ibera" | "pampa" | "puna" | "monte" | "patagonia" | "sea" | "misiones";
+
+// The habitat its centroid falls in
+export type PresetFence = Fence & { readonly id: FenceId; readonly habitat: AreaHabitat };
 
 // One fence per recognizable biome, drawn by hand inside Argentina over src/data/habitats.geojson
 export const FENCES: readonly PresetFence[] = [
@@ -82,14 +85,19 @@ export const FENCES: readonly PresetFence[] = [
     ],
   },
   {
+    // Off Península Valdés and the San Jorge gulf, at the size cap: the sea's species spread over the
+    // whole shelf, so a smaller fence there traces only a handful
     id: "sea",
     habitat: "sea",
     ring: [
-      [-64.0, -43.8],
-      [-60.3, -43.8],
-      [-60.5, -45.4],
-      [-62.0, -46.8],
-      [-64.5, -46.2],
+      [-62.7, -42.4],
+      [-60.4, -43.5],
+      [-60.8, -45.5],
+      [-61.5, -47.0],
+      [-63.8, -47.3],
+      [-65.5, -46.1],
+      [-64.9, -44.3],
+      [-63.7, -43.0],
     ],
   },
   {

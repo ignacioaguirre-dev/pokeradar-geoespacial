@@ -1,7 +1,9 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { contrastRatio } from "../src/domain/color/contrast";
+import { composite, contrastRatio } from "../src/domain/color/contrast";
+import { colorDistance } from "../src/domain/color/distance";
+import { BIOME_OPACITY } from "../src/domain/color/biome";
 import { CURVE_OUT } from "../src/components/ui/motion-tokens";
 import { COLOR_USAGE } from "../src/domain/color/usage";
 
@@ -45,6 +47,18 @@ const PAIRS: ReadonlyArray<{
   { foreground: ["map-border"], background: ["map-land"], kind: "graphic", minimum: 3 },
 ];
 
+// The fence and its rings are drawn over the land, over every biome as the map paints it, and over the shelf sea
+const BIOMES_OVER_LAND = ["forest", "grassland", "waters-edge", "mountain", "rough-terrain"];
+const SWEEP_GROUNDS: ReadonlyArray<{ name: string; color: string }> = [
+  { name: "map-land", color: C["map-land"] },
+  { name: "map-sea", color: C["map-sea"] },
+  ...BIOMES_OVER_LAND.map((biome) => ({
+    name: `biome-${biome} over map-land`,
+    color: composite(C[`biome-${biome}`], C["map-land"], BIOME_OPACITY),
+  })),
+  { name: "biome-sea over map-sea", color: composite(C["biome-sea"], C["map-sea"], BIOME_OPACITY) },
+];
+
 describe("contrastRatio with the palette", () => {
   it("matches the reference values", () => {
     expect(contrastRatio("#0B0E12", "#F1EDE4")).toBeCloseTo(16.55, 1);
@@ -64,10 +78,25 @@ describe("token contrast", () => {
         "control", "habitat", "condition", "energy", "alert",
         "map-sea", "map-land", "map-coast", "map-border", "map-province", "map-space",
         "biome-forest", "biome-grassland", "biome-waters-edge", "biome-mountain",
-        "biome-rough-terrain", "biome-sea",
+        "biome-rough-terrain", "biome-sea", "sweep", "flag-sky",
       ].sort(),
     );
   });
+
+  for (const ground of SWEEP_GROUNDS) {
+    it(`sweep on ${ground.name} meets 3 (graphic)`, () => {
+      expect(contrastRatio(C.sweep, ground.color)).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  // The rings and the traces cross, and the fence runs under labels: it must not read as one more trace
+  // or as text. Contrast cannot tell them apart (all light), color distance can: the candidates dropped
+  // for passing as the text sat near ΔE 10
+  for (const other of ["habitat", "foreground"]) {
+    it(`sweep stays at least ΔE 15 from ${other}`, () => {
+      expect(colorDistance(C.sweep, C[other])).toBeGreaterThanOrEqual(15);
+    });
+  }
 
   for (const pair of PAIRS) {
     for (const fg of pair.foreground) {

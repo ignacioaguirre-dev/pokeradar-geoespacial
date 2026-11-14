@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { areaKm2 } from "@/domain/geometry/area";
 import { centroid } from "@/domain/geometry/centroid";
+import { pointInRing } from "@/domain/geometry/point-in-ring";
 import type { LngLat, Ring } from "@/domain/geometry/types";
 import { habitatsAt, onArgentineLand } from "@/testing/geo";
 import { FENCES } from "./fences";
@@ -56,6 +57,44 @@ describe("FENCES", () => {
 
     it("stays inside Argentina", () => {
       for (const vertex of fence.ring) expect(insideArgentina(vertex), `${vertex}`).toBe(true);
+    });
+  });
+
+  // The sea habitat spreads its 40 species over a huge shelf: a small fence there finds almost nothing
+  describe("sea", () => {
+    const sea = FENCES.find((f) => f.id === "sea")!;
+
+    it("is as big as the rule allows", () => {
+      expect(areaKm2(sea.ring)).toBeGreaterThanOrEqual(140_000);
+    });
+
+    // Vertices alone would let an edge cut across Península Valdés or past the shelf
+    it("lies entirely in the sea habitat: no land, no open ocean", () => {
+      const { ring } = sea;
+      for (let i = 0; i < ring.length; i++) {
+        const [a, b] = [ring[i], ring[(i + 1) % ring.length]];
+        for (let step = 0; step <= 20; step++) {
+          const t = step / 20;
+          const point: LngLat = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+          expect(habitatsAt(point), `${point}`).toEqual(["sea"]);
+          expect(onArgentineLand(point), `${point}`).toBe(false);
+        }
+      }
+    });
+
+    // The shelf has a hole around the islands; a fence over them would trace nothing there
+    it("does not cover Malvinas", () => {
+      const islands: Record<string, LngLat> = {
+        "Puerto Argentino": [-57.85, -51.69],
+        "isla Soledad": [-58.8, -51.75],
+        "isla Gran Malvina": [-60.0, -51.8],
+        "isla Borbón, al norte": [-59.5, -51.35],
+      };
+      // The check itself sees inside: the fence's own center is in it
+      expect(pointInRing(centroid(sea.ring), sea.ring)).toBe(true);
+      for (const [name, point] of Object.entries(islands)) {
+        expect(pointInRing(point, sea.ring), name).toBe(false);
+      }
     });
   });
 });
