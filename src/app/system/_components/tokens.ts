@@ -20,6 +20,7 @@ export const TOKENS: readonly Token[] = [
   { name: "map-coast", swatch: "bg-map-coast" },
   { name: "map-border", swatch: "bg-map-border" },
   { name: "map-province", swatch: "bg-map-province" },
+  { name: "map-space", swatch: "bg-map-space" },
   { name: "biome-forest", swatch: "bg-biome-forest" },
   { name: "biome-grassland", swatch: "bg-biome-grassland" },
   { name: "biome-waters-edge", swatch: "bg-biome-waters-edge" },

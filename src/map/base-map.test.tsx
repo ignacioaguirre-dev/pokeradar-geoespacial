@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseMap } from "./base-map";
+import { BaseMap, type MapHandle } from "./base-map";
+import { INTRO_PROJECTION } from "./intro-flight";
 import type { HabitatCollection } from "./habitats";
 
 type Handler = (event?: unknown) => void;
@@ -19,12 +21,13 @@ const fake = vi.hoisted(() => {
       public options: {
         container: HTMLElement;
         locale: Record<string, string>;
-        style: { sources: Record<string, { data?: unknown }> };
+        style: { sources: Record<string, { data?: unknown }>; projection?: unknown };
       },
     ) {
       if (FakeMap.throwOnCreate) throw new Error("Failed to initialize WebGL");
-      // MapLibre appends its own canvas, names it from the locale and marks it as a region
+      // MapLibre appends its own focusable canvas, names it from the locale and marks it as a region
       this.canvas = document.createElement("canvas");
+      this.canvas.tabIndex = 0;
       this.canvas.setAttribute("role", "region");
       this.canvas.setAttribute("aria-label", options.locale["Map.Title"]);
       options.container.appendChild(this.canvas);
@@ -57,7 +60,17 @@ const fake = vi.hoisted(() => {
   return { FakeMap };
 });
 
+const flight = vi.hoisted(() => ({
+  start: vi.fn(),
+  cancel: vi.fn(),
+  dispose: vi.fn(),
+}));
+
 vi.mock("maplibre-gl", () => ({ Map: fake.FakeMap, setWorkerUrl: vi.fn() }));
+vi.mock("./intro-flight", async (original) => ({
+  ...(await original<typeof import("./intro-flight")>()),
+  startIntroFlight: flight.start,
+}));
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 vi.mock("./colors", () => ({
   readMapColors: () => ({
@@ -69,6 +82,7 @@ vi.mock("./colors", () => ({
     label: "marker-label",
     city: "marker-city",
     sighting: "marker-sighting",
+    space: "marker-space",
     biome: {
       forest: "marker-forest",
       grassland: "marker-grassland",
@@ -94,6 +108,9 @@ describe("BaseMap", () => {
   beforeEach(() => {
     fake.FakeMap.instances = [];
     fake.FakeMap.throwOnCreate = false;
+    flight.cancel.mockReset();
+    flight.dispose.mockReset();
+    flight.start.mockReset().mockReturnValue({ cancel: flight.cancel, dispose: flight.dispose });
   });
 
   it("hands the sightings to the style", () => {
@@ -236,5 +253,97 @@ describe("BaseMap", () => {
     render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={vi.fn()} />);
     const canvas = screen.getByRole("application", { name: labels.region });
     expect(canvas).toHaveAccessibleDescription(labels.keyboardHelp);
+  });
+
+  describe("entry flight", () => {
+    it("stays flat and still without intro", () => {
+      render(<BaseMap habitats={habitats} labels={labels} padding={padding} onStatusChange={vi.fn()} />);
+      expect(lastMap().options.style.projection).toBeUndefined();
+      expect(flight.start).not.toHaveBeenCalled();
+    });
+
+    it("starts from the globe with intro and reports its end", () => {
+      const onIntroEnd = vi.fn();
+      render(
+        <BaseMap
+          habitats={habitats}
+          labels={labels}
+          padding={padding}
+          intro
+          onIntroEnd={onIntroEnd}
+          onStatusChange={vi.fn()}
+        />,
+      );
+      expect(lastMap().options.style.projection).toEqual(INTRO_PROJECTION);
+      expect(flight.start).toHaveBeenCalledOnce();
+      const [map, options] = flight.start.mock.calls[0] as [unknown, { rimColor: string; onEnd(): void }];
+      expect(map).toBe(lastMap());
+      // The globe's edge is drawn with the coastline's token
+      expect(options.rimColor).toBe("marker-coast");
+      expect(onIntroEnd).not.toHaveBeenCalled();
+      options.onEnd();
+      expect(onIntroEnd).toHaveBeenCalledOnce();
+    });
+
+    // The map is usable while it flies; the flight does not hold the status back
+    it("reports ready on load while flying", () => {
+      const onStatusChange = vi.fn();
+      render(<BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={onStatusChange} />);
+      lastMap().emit("load");
+      expect(onStatusChange).toHaveBeenCalledExactlyOnceWith("ready");
+    });
+
+    it("skipIntro cancels the flight and focus moves to the canvas", () => {
+      const ref = createRef<MapHandle>();
+      render(<BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} ref={ref} />);
+      act(() => ref.current?.skipIntro());
+      expect(flight.cancel).toHaveBeenCalledOnce();
+      act(() => ref.current?.focus());
+      expect(document.activeElement).toBe(screen.getByRole("application", { name: labels.region }));
+    });
+
+    // MapLibre still fires load after a failed source, which would start the flight and draw the globe's rim
+    it("ends the flight when the map fails before load, so it never starts", () => {
+      const onIntroEnd = vi.fn();
+      render(
+        <BaseMap
+          habitats={habitats}
+          labels={labels}
+          padding={padding}
+          intro
+          onIntroEnd={onIntroEnd}
+          onStatusChange={vi.fn()}
+        />,
+      );
+      flight.cancel.mockImplementation(() => flight.start.mock.calls[0][1].onEnd());
+      lastMap().emit("error", { error: new Error("source failed") });
+      expect(flight.cancel).toHaveBeenCalledOnce();
+      expect(onIntroEnd).toHaveBeenCalledOnce();
+    });
+
+    it("ends the flight when the WebGL context is lost mid-flight", () => {
+      render(<BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} />);
+      lastMap().emit("load");
+      lastMap().emit("webglcontextlost");
+      expect(flight.cancel).toHaveBeenCalledOnce();
+    });
+
+    it("keeps flying through a single tile failure", () => {
+      render(<BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} />);
+      lastMap().emit("error", { error: new Error("tile failed"), tile: {} });
+      lastMap().emit("load");
+      lastMap().emit("error", { error: new Error("tile failed") });
+      expect(flight.cancel).not.toHaveBeenCalled();
+    });
+
+    it("detaches the flight before removing the map", () => {
+      const { unmount } = render(
+        <BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} />,
+      );
+      unmount();
+      expect(flight.dispose).toHaveBeenCalledOnce();
+      expect(flight.cancel).not.toHaveBeenCalled();
+      expect(lastMap().removed).toBe(1);
+    });
   });
 });

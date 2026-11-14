@@ -62,7 +62,7 @@ describe("token contrast", () => {
       [
         "background", "surface", "foreground", "muted", "structure",
         "control", "habitat", "condition", "energy", "alert",
-        "map-sea", "map-land", "map-coast", "map-border", "map-province",
+        "map-sea", "map-land", "map-coast", "map-border", "map-province", "map-space",
         "biome-forest", "biome-grassland", "biome-waters-edge", "biome-mountain",
         "biome-rough-terrain", "biome-sea",
       ].sort(),

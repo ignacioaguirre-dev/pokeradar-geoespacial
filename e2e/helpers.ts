@@ -56,11 +56,16 @@ export async function mockOpenFreeMap(page: Page, options: MockOptions = {}): Pr
   });
 }
 
-// Generous because CI renders WebGL in software
+// Generous because CI renders WebGL in software. Every test that waits for the map skips the entry flight here,
+// so it starts from the final frame with the controls enabled; under reduced motion there is no flight to skip
 export async function waitForMapReady(page: Page): Promise<void> {
   await expect(page.getByRole("region", { name: messages.Map.region })).toHaveAttribute("aria-busy", "false", {
     timeout: 30_000,
   });
+  const skip = page.getByRole("button", { name: messages.Map.skipIntroLabel });
+  // The flight can end on its own between the check and the click, which removes the button
+  if (await skip.isVisible()) await skip.click({ timeout: 2_000 }).catch(() => undefined);
+  await expect(skip).toBeHidden({ timeout: 10_000 });
 }
 
 // Sums the gzip size of every <script src> in the page's HTML, so it needs no browser
