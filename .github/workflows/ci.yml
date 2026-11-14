@@ -90,14 +90,11 @@ jobs:
             fi
           done
 
-      # One run keeps every project in a single report.
-      # Release branches run the full suite; the rest runs @critical outside chromium.
+      # One run keeps every project in a single report: the whole suite in chromium, @critical in the rest.
+      # The full suite in every project (E2E_FULL=1) is not a gate yet: many tests are written for a desktop
+      # chromium and need a per-project condition first
       - name: Run e2e
-        env:
-          HEAD: ${{ github.head_ref }}
-        run: |
-          if [[ "$HEAD" == release/* ]]; then export E2E_FULL=1; fi
-          pnpm exec playwright test
+        run: pnpm exec playwright test
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
