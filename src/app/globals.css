@@ -100,24 +100,6 @@
     border-radius: var(--radius-control);
     background: var(--color-energy);
   }
-  /* Only the fill grows; under reduced motion the token is 0 and it is drawn full at once.
-     Two rules: an unknown vendor pseudo-element in a selector list drops the whole rule */
-  meter.energy-meter-grow::-webkit-meter-optimum-value,
-  meter.energy-meter-grow::-webkit-meter-suboptimum-value,
-  meter.energy-meter-grow::-webkit-meter-even-less-good-value {
-    transform-origin: left;
-    animation: energy-grow var(--duration-medium) var(--curve-out) both;
-  }
-  meter.energy-meter-grow::-moz-meter-bar {
-    transform-origin: left;
-    animation: energy-grow var(--duration-medium) var(--curve-out) both;
-  }
-}
-
-@keyframes energy-grow {
-  from {
-    transform: scaleX(0);
-  }
 }
 
 /* A short drop from under the brand, so a change of connection reads as an event; skipped under reduced motion */

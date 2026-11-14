@@ -187,10 +187,10 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
               {t("stats")}
             </h3>
             <ul aria-labelledby={statsId} className="flex flex-col gap-3">
-              {STATS.map((stat) => (
+              {STATS.map((stat, order) => (
                 <li key={stat}>
                   {ready ? (
-                    <EnergyBar label={tStats(stat)} value={data.stats[stat]} max={STAT_MAX} grow />
+                    <EnergyBar label={tStats(stat)} value={data.stats[stat]} max={STAT_MAX} grow order={order} />
                   ) : (
                     // Same rows as EnergyBar: a label line and the 0.5 rem bar
                     <div aria-hidden="true" className="flex flex-col gap-1 text-label">
