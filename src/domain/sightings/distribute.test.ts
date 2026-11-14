@@ -1,5 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
+import { areaKm2 } from "@/domain/geometry/area";
 import { pointInPolygon } from "@/domain/geometry/point-in-polygon";
 import type { LngLat, Ring } from "@/domain/geometry/types";
 import { HABITATS, type Habitat } from "@/domain/habitat/types";
@@ -99,6 +100,20 @@ describe("distribute", () => {
     const small = distribute(many, AREAS, SITES).filter(({ point: [lng] }) => lng >= -60);
     // The small square is 0.04 of 12 square degrees: about 3 of 1000 points
     expect(small.length).toBeLessThan(20);
+  });
+
+  test("a polygon with a hole gets its share by net area, not less", () => {
+    // Same net area: a ring with a big hole and a plain square, side by side at the same latitude
+    const ring = [square(-66, -30, 4), square(-65.5, -29.5, 3)];
+    const plain = square(-61, -30, Math.sqrt(7));
+    const area: HabitatArea = { habitat: "forest", polygons: [ring, [plain]] };
+    const many = Array.from({ length: 200 }, (_, i) => ({ id: i + 1, habitat: "forest" as const }));
+    const sightings = distribute(many, [area], SITES);
+    const share = sightings.filter(({ point }) => pointInPolygon(point, ring)).length / sightings.length;
+    const expected =
+      (areaKm2(ring[0]) - areaKm2(ring[1])) / (areaKm2(ring[0]) - areaKm2(ring[1]) + areaKm2(plain));
+    expect(share).toBeGreaterThan(expected - 0.06);
+    expect(share).toBeLessThan(expected + 0.06);
   });
 
   test("site points stay within 0.15° of a site of their habitat", () => {

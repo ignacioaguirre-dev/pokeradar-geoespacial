@@ -30,13 +30,15 @@ const roundPoint = ([lng, lat]: LngLat): LngLat => [round(lng), round(lat)];
 
 type WeightedPolygon = { readonly rings: readonly Ring[]; readonly cumulative: number };
 
+// Weighed by the outer ring alone: samples in a hole are rejected and re-picked, which already
+// scales each polygon down to its net area. Subtracting the holes here too would count them twice.
 function weigh(polygons: readonly (readonly Ring[])[]): WeightedPolygon[] {
   const weighted: WeightedPolygon[] = [];
   let total = 0;
   for (const rings of polygons) {
-    const [outer, ...holes] = rings;
+    const outer = rings[0];
     if (!outer) continue;
-    const area = areaKm2(outer) - holes.reduce((sum, hole) => sum + areaKm2(hole), 0);
+    const area = areaKm2(outer);
     if (area <= 0) continue;
     total += area;
     weighted.push({ rings, cumulative: total });
