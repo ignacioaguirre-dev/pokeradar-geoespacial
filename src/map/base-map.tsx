@@ -129,6 +129,11 @@ export function BaseMap({
     let loaded = false;
     // MapLibre still fires load after a failed style or source, so a startup error stays until retry
     let failed = false;
+    // The notice takes over: a flight left running would start on that late load and draw the globe's rim over it
+    const fail = () => {
+      flightRef.current?.cancel();
+      reportStatus("error");
+    };
     map.on("load", () => {
       loaded = true;
       writeZoom();
@@ -140,9 +145,9 @@ export function BaseMap({
     map.on("error", (event) => {
       if (loaded || "tile" in event) return;
       failed = true;
-      reportStatus("error");
+      fail();
     });
-    map.on("webglcontextlost", () => reportStatus("error"));
+    map.on("webglcontextlost", fail);
     // MapLibre restores the context itself, and a worker pool restart fires a lost/restored pair
     map.on("webglcontextrestored", () => {
       if (loaded && !failed) reportStatus("ready");

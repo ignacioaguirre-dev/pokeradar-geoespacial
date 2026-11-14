@@ -302,6 +302,40 @@ describe("BaseMap", () => {
       expect(document.activeElement).toBe(screen.getByRole("application", { name: labels.region }));
     });
 
+    // MapLibre still fires load after a failed source, which would start the flight and draw the globe's rim
+    it("ends the flight when the map fails before load, so it never starts", () => {
+      const onIntroEnd = vi.fn();
+      render(
+        <BaseMap
+          habitats={habitats}
+          labels={labels}
+          padding={padding}
+          intro
+          onIntroEnd={onIntroEnd}
+          onStatusChange={vi.fn()}
+        />,
+      );
+      flight.cancel.mockImplementation(() => flight.start.mock.calls[0][1].onEnd());
+      lastMap().emit("error", { error: new Error("source failed") });
+      expect(flight.cancel).toHaveBeenCalledOnce();
+      expect(onIntroEnd).toHaveBeenCalledOnce();
+    });
+
+    it("ends the flight when the WebGL context is lost mid-flight", () => {
+      render(<BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} />);
+      lastMap().emit("load");
+      lastMap().emit("webglcontextlost");
+      expect(flight.cancel).toHaveBeenCalledOnce();
+    });
+
+    it("keeps flying through a single tile failure", () => {
+      render(<BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} />);
+      lastMap().emit("error", { error: new Error("tile failed"), tile: {} });
+      lastMap().emit("load");
+      lastMap().emit("error", { error: new Error("tile failed") });
+      expect(flight.cancel).not.toHaveBeenCalled();
+    });
+
     it("detaches the flight before removing the map", () => {
       const { unmount } = render(
         <BaseMap habitats={habitats} labels={labels} padding={padding} intro onStatusChange={vi.fn()} />,

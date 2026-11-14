@@ -228,6 +228,22 @@ test.describe("with WebGL2", () => {
       expect(errors).toEqual([]);
     });
 
+    test("a map that fails to load ends the flight and leaves no globe edge", async ({ page }) => {
+      await mockOpenFreeMap(page, { fail: true });
+      await page.goto("/");
+      await expect(mapAlert(page)).toContainText(t.errorTitle);
+      await expect(skipButton(page)).toHaveCount(0);
+      const map = page.locator("[data-map]");
+      // Sampled for longer than MapLibre takes to fire its late load, and well inside the 3.5 s flight,
+      // which would otherwise end on its own and hide the leak. Read once per sample: a retrying assertion would wait it out
+      for (let i = 0; i < 15; i++) {
+        expect(await map.locator("svg").filter({ visible: true }).count()).toBe(0);
+        // Behind the notice, the sea, as on a load without the flight
+        expect(await map.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(5, 11, 19)");
+        await page.waitForTimeout(100);
+      }
+    });
+
     test("skip lands on the final frame with the map ready", async ({ page }) => {
       const final = await finalZoom(page);
       await startFlight(page);

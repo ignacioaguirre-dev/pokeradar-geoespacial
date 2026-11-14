@@ -206,6 +206,15 @@ describe("startIntroFlight", () => {
     expect(rim.removed).toBe(1);
   });
 
+  // A failed map still fires load; the flight it ended must not draw the rim then
+  it("never draws the rim once cancelled before load", () => {
+    const flight = start();
+    flight.cancel();
+    map.emit("style.load");
+    map.emit("load");
+    expect(rim.attached).toBe(0);
+  });
+
   it("removes the rim when the map goes away mid-flight", () => {
     const flight = start();
     map.emit("style.load");
