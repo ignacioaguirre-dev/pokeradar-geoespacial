@@ -9,6 +9,7 @@ export type MapColors = {
   label: string;
   city: string;
   sighting: string;
+  space: string;
   biome: Record<AreaHabitat, string>;
 };
 
@@ -26,6 +27,7 @@ export function readMapColors(): MapColors {
     city: token("foreground"),
     // Neutral gray: dots must not compete with the biome fills nor read as a habitat
     sighting: token("muted"),
+    space: token("map-space"),
     biome: {
       forest: token("biome-forest"),
       grassland: token("biome-grassland"),

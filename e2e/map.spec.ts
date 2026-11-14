@@ -136,6 +136,8 @@ test.describe("with WebGL2", () => {
   });
 
   test("keyboard order and zoom", async ({ page }) => {
+    // No flight, so focus starts from the top of the page instead of where a skip leaves it
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await waitForMapReady(page);
     // The project's ring: 2 px of foreground; the canvas draws it inset because MapLibre clips its overflow
@@ -190,6 +192,118 @@ test.describe("with WebGL2", () => {
     expect(frames[0]).toBe(frames[1]);
     // data-zoom is rounded to one decimal, so the step of 1 is compared within that rounding
     expect(Math.abs(frames[0] - (before + 1))).toBeLessThanOrEqual(0.1);
+  });
+
+  test.describe("entry flight", () => {
+    const skipButton = (page: Page) => page.getByRole("button", { name: t.skipIntroLabel });
+    const zoomOf = async (page: Page) => Number(await page.locator("[data-map]").getAttribute("data-zoom"));
+    const regionBusy = (page: Page) => page.getByRole("region", { name: t.region });
+
+    // The frame a plain load (no flight) lands on, to compare every way of ending the flight against
+    async function finalZoom(page: Page): Promise<number> {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto("/");
+      await waitForMapReady(page);
+      const zoom = await zoomOf(page);
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      return zoom;
+    }
+
+    async function startFlight(page: Page) {
+      await page.goto("/");
+      await expect(skipButton(page)).toBeVisible();
+      await expect(regionBusy(page)).toHaveAttribute("aria-busy", "false", { timeout: 30_000 });
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeDisabled();
+    }
+
+    test("a load with the flight hydrates without errors", async ({ page }) => {
+      const errors: string[] = [];
+      page.on("console", (message) => {
+        if (message.type() === "error") errors.push(message.text());
+      });
+      page.on("pageerror", (error) => errors.push(error.message));
+      await startFlight(page);
+      await skipButton(page).click();
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
+      expect(errors).toEqual([]);
+    });
+
+    test("skip lands on the final frame with the map ready", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      await skipButton(page).click();
+      await expect(skipButton(page)).toBeHidden();
+      await expect(page.getByRole("application", { name: t.region })).toBeFocused();
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
+      expect(await zoomOf(page)).toBe(final);
+
+      // "Ver Argentina" returns to that same frame
+      await page.getByRole("button", { name: t.zoomIn }).click();
+      await expect.poll(() => zoomOf(page)).toBeGreaterThan(final);
+      await page.getByRole("button", { name: t.reset }).click();
+      await expect.poll(() => zoomOf(page)).toBe(final);
+    });
+
+    test("the flight ends by itself on the final frame", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      await expect(skipButton(page)).toBeHidden({ timeout: 15_000 });
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
+      expect(await zoomOf(page)).toBe(final);
+    });
+
+    test("skip is the first Tab stop and works from the keyboard", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      await page.keyboard.press("Tab");
+      await expect(skipButton(page)).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(skipButton(page)).toBeHidden();
+      await expect(page.getByRole("application", { name: t.region })).toBeFocused();
+      expect(await zoomOf(page)).toBe(final);
+    });
+
+    test("a key on the map ends the flight", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      await page.getByRole("application", { name: t.region }).focus();
+      // A key that moves nothing, so the frame stays the final one
+      await page.keyboard.press("Shift");
+      await expect(skipButton(page)).toBeHidden();
+      expect(await zoomOf(page)).toBe(final);
+    });
+
+    test("a wheel on the map ends the flight", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      const box = await page.getByRole("application", { name: t.region }).boundingBox();
+      if (!box) throw new Error("no canvas");
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(0, 100);
+      await expect(skipButton(page)).toBeHidden();
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
+      // The wheel then zooms out from the final frame, never from the globe
+      await expect.poll(() => zoomOf(page)).toBeLessThan(final);
+      expect(await zoomOf(page)).toBeGreaterThan(final - 1);
+    });
+
+    test("a tap on the map ends the flight", async ({ page }) => {
+      const final = await finalZoom(page);
+      await startFlight(page);
+      await page.getByRole("application", { name: t.region }).click();
+      await expect(skipButton(page)).toBeHidden();
+      expect(await zoomOf(page)).toBe(final);
+    });
+
+    test("reduced motion opens on the final frame without a flight", async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto("/");
+      await expect(regionBusy(page)).toHaveAttribute("aria-busy", "false", { timeout: 30_000 });
+      await expect(skipButton(page)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
+      const zoom = await zoomOf(page);
+      expect(zoom).toBeGreaterThanOrEqual(2);
+    });
   });
 
   test("the map follows a viewport change", async ({ page }) => {

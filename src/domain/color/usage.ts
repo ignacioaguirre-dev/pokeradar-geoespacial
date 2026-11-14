@@ -21,6 +21,7 @@ export const COLOR_USAGE = {
   "map-coast": { kind: "decorative", minimum: null },
   "map-border": { kind: "decorative", minimum: null },
   "map-province": { kind: "decorative", minimum: null },
+  "map-space": { kind: "decorative", minimum: null },
   "biome-forest": { kind: "decorative", minimum: null },
   "biome-grassland": { kind: "decorative", minimum: null },
   "biome-waters-edge": { kind: "decorative", minimum: null },

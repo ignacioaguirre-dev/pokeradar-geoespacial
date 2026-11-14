@@ -9,6 +9,7 @@ import { readMapColors } from "./colors";
 import type { CompactSighting } from "@/domain/sightings/compact";
 import type { HabitatCollection } from "./habitats";
 import { SIGHTINGS_SOURCE, toSightingCollection } from "./sightings";
+import { INTRO_PROJECTION, type IntroFlight, startIntroFlight } from "./intro-flight";
 import { buildStyle } from "./style";
 
 // Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
@@ -20,6 +21,8 @@ export type MapHandle = {
   zoomIn(): void;
   zoomOut(): void;
   resetView(): void;
+  skipIntro(): void;
+  focus(): void;
 };
 
 type Padding = { top: number; right: number; bottom: number; left: number };
@@ -30,6 +33,10 @@ type BaseMapProps = {
   sightings?: readonly CompactSighting[];
   labels: { region: string; keyboardHelp: string };
   padding: Padding;
+  // Read when the map is created: fly in from space instead of opening on the final frame.
+  // Later it only keeps the space background behind the globe until the page reports the flight over
+  intro?: boolean;
+  onIntroEnd?(): void;
   onStatusChange(status: MapStatus): void;
   ref?: Ref<MapHandle>;
 };
@@ -39,21 +46,32 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, ref }: BaseMapProps) {
+export function BaseMap({
+  habitats,
+  sightings,
+  labels,
+  padding,
+  intro = false,
+  onIntroEnd,
+  onStatusChange,
+  ref,
+}: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const flightRef = useRef<IntroFlight | null>(null);
   const helpId = useId();
   // The sightings the map's source holds, so a re-render with the same list does not reload it
   const appliedSightings = useRef<readonly CompactSighting[] | undefined>(undefined);
 
   const reportStatus = useEffectEvent((status: MapStatus) => onStatusChange(status));
+  const reportIntroEnd = useEffectEvent(() => onIntroEnd?.());
 
   // Reads the props of the first render; later changes go through their own effects
   const createMap = useEffectEvent((container: HTMLDivElement) => {
     appliedSightings.current = sightings;
     return new MapLibreMap({
         container,
-        style: buildStyle(readMapColors(), habitats, sightings),
+        style: buildStyle(readMapColors(), habitats, sightings, intro ? INTRO_PROJECTION : undefined),
         bounds: ARGENTINA_BOUNDS,
         // Absolute so the fit also sets the map padding and the padding effect starts as a no-op
         fitBoundsOptions: { padding, absolutePadding: true },
@@ -64,6 +82,17 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
         touchPitch: false,
         attributionControl: false,
         locale: { "Map.Title": labels.region },
+    });
+  });
+
+  // Reads the first render's intro, like createMap; the map must already sit on the final frame
+  const startFlight = useEffectEvent((map: MapLibreMap, container: HTMLDivElement) => {
+    if (!intro) return null;
+    return startIntroFlight(map, {
+      width: container.clientWidth,
+      height: container.clientHeight,
+      rimColor: readMapColors().coast,
+      onEnd: () => reportIntroEnd(),
     });
   });
 
@@ -119,8 +148,11 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
       if (loaded && !failed) reportStatus("ready");
     });
     map.on("zoomend", writeZoom);
+    flightRef.current = startFlight(map, container);
 
     return () => {
+      flightRef.current?.dispose();
+      flightRef.current = null;
       mapRef.current = null;
       map.remove();
     };
@@ -147,6 +179,8 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
       resetView: () => {
         mapRef.current?.fitBounds(ARGENTINA_BOUNDS, { animate: !prefersReducedMotion() });
       },
+      skipIntro: () => flightRef.current?.cancel(),
+      focus: () => mapRef.current?.getCanvas().focus({ preventScroll: true }),
     };
   }, []);
 
@@ -154,7 +188,7 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
     <>
       {/* MapLibre owns the container's children, so the help lives beside it.
           Sized, not positioned: MapLibre's unlayered .maplibregl-map forces position: relative over Tailwind's layer */}
-      <div ref={containerRef} data-map className="size-full bg-map-sea" />
+      <div ref={containerRef} data-map className={`size-full ${intro ? "bg-map-space" : "bg-map-sea"}`} />
       <p id={helpId} className="sr-only">
         {labels.keyboardHelp}
       </p>
