@@ -9,6 +9,7 @@ import { SweepReading } from "@/components/sweep/sweep-reading";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { FENCES } from "@/data/fences";
+import type { LngLat, Ring } from "@/domain/geometry/types";
 import { spriteUrl } from "@/features/catalog/sprite";
 import { CREATURE_PARAM, openCreature, parseCreatureId } from "@/features/creature/history";
 import {
@@ -17,12 +18,14 @@ import {
   subscribe as subscribeMapHelp,
 } from "@/features/map-help/storage";
 import type { SightingsPayload } from "@/features/sweep/types";
-import { useFenceSweep } from "@/features/sweep/use-fence-sweep";
+import { OWN_FENCE_ID, useFenceSweep } from "@/features/sweep/use-fence-sweep";
 import { usePointerKind } from "@/hooks/use-pointer-kind";
 import { useResolved } from "@/hooks/use-resolved";
 import type { MapHandle, MapInput, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
+import type { FenceDrawingHandle } from "./fence-drawing";
+import { FenceDrawing, FenceDrawingTrigger, preloadFenceDrawing } from "./fence-drawing-entry";
 import { HabitatLegend } from "./habitat-legend";
 import { introPlayed } from "./intro-played";
 import { introLines, MapHelpButton, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
@@ -186,6 +189,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const t = useTranslations("Map");
   const tFences = useTranslations("Fences");
   const tSweep = useTranslations("Sweep");
+  const tDrawing = useTranslations("FenceDrawing");
   const supported = useWebGL2Support();
   const wide = useWideViewport();
   const online = useOnline();
@@ -197,7 +201,13 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const helpRef = useRef<MapHelpButtonHandle>(null);
   const regionRef = useRef<HTMLElement>(null);
   const sweepPanelRef = useRef<HTMLDivElement>(null);
-  const { fence, detection, choose } = useFenceSweep(FENCES, payload);
+  const { fence, detection, choose, draw } = useFenceSweep(FENCES, payload);
+  // The vertices of the fence being drawn; null outside the drawing mode
+  const [draft, setDraft] = useState<Ring | null>(null);
+  const drawingRef = useRef<FenceDrawingHandle>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Leaving the mode unmounts its focused buttons: the trigger, back in their place, takes the focus
+  const returnFocus = useRef(false);
   // The creature open in the detail, as the URL says
   const [focus, setFocus] = useState<number | null>(null);
 
@@ -233,8 +243,18 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const waiting = phase === "loading" || phase === "slow";
 
   useEffect(() => {
-    if (phase === "ready") return whenIdle(preloadCreaturePanel);
+    if (phase !== "ready") return;
+    return whenIdle(() => {
+      preloadCreaturePanel();
+      preloadFenceDrawing();
+    });
   }, [phase]);
+
+  useEffect(() => {
+    if (draft !== null || !returnFocus.current) return;
+    returnFocus.current = false;
+    triggerRef.current?.focus();
+  }, [draft]);
 
   // Marked as soon as the flight can start: a remount (leaving the page and coming back) lands directly
   useEffect(() => {
@@ -332,9 +352,33 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
     focusMap();
   }
 
+  function startDrawing() {
+    helpRef.current?.close();
+    setDraft([]);
+  }
+
+  function leaveDrawing() {
+    returnFocus.current = true;
+    setDraft(null);
+  }
+
+  function closeDrawing(ring: Ring) {
+    draw(ring);
+    leaveDrawing();
+  }
+
+  // The map reports where; the panel decides whether the rules let it become a vertex
+  function handleDraftPoint(point: LngLat) {
+    drawingRef.current?.add(point);
+  }
+
+  // A map that fails mid-drawing hides the mode with it; the vertices wait for the retry
+  const drawing = draft !== null && interactive;
+
   const sweep: SweepProps = {
-    // Only once there is something to trace: rings over a fence still loading would play twice, or for nothing
-    fence: detection.status === "ready" ? fence : null,
+    // Only once there is something to trace: rings over a fence still loading would play twice, or for nothing.
+    // Cleared while drawing, so the fence in progress is the only one on the map
+    fence: detection.status === "ready" && !drawing ? fence : null,
     creatures,
     focus,
     fencePadding: () => fencePadding(wide, focus !== null, sweepPanelRef.current),
@@ -395,7 +439,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
             ref={mapRef}
             sightings={payload?.sightings}
             sweep={sweep}
-            labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
+            draft={drawing ? { ring: draft, onPoint: handleDraftPoint } : null}
+            labels={{ region: t("region"), keyboardHelp: drawing ? tDrawing("keyboardHelp") : t("keyboardHelp") }}
             padding={wide ? PADDING_WIDE : PADDING_NARROW}
             intro={flies && !introDone}
             onIntroEnd={endIntro}
@@ -417,21 +462,36 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
           ref={sweepPanelRef}
           onClickCapture={dismissHelp}
           className="pointer-events-auto relative flex w-full flex-col gap-3 rounded-panel border border-structure bg-surface p-2 md:absolute md:top-24 md:left-[max(0.75rem,env(safe-area-inset-left))] md:max-h-[calc(100dvh-12.5rem)] md:w-80 md:overflow-y-auto md:p-3">
-          <FencePicker
-            fences={FENCES.map(({ id }) => ({ id, name: tFences(id) }))}
-            active={fence?.id ?? null}
-            // Like the map controls it waits for the final frame, yet without a flight it works before the map does
-            // (the list opens the detail even without WebGL). The map itself ends a flight a sweep would land over
-            disabled={flying}
-            onChoose={choose}
-          />
-          <SweepReading
-            detection={detection}
-            fenceName={fence ? tFences(fence.id) : null}
-            onOpen={openCreature}
-            onIntent={prepareCreature}
-            onRetry={() => window.location.reload()}
-          />
+          {drawing ? (
+            <FenceDrawing
+              ref={drawingRef}
+              vertices={draft}
+              onChange={setDraft}
+              onClose={closeDrawing}
+              onCancel={leaveDrawing}
+              reticlePoint={() => mapRef.current?.reticlePoint() ?? null}
+            />
+          ) : (
+            <>
+              <FencePicker
+                fences={FENCES.map(({ id }) => ({ id, name: tFences(id) }))}
+                active={fence?.id ?? null}
+                // Like the map controls it waits for the final frame, yet without a flight it works before the map does
+                // (the list opens the detail even without WebGL). The map itself ends a flight a sweep would land over
+                disabled={flying}
+                // Drawing needs the map, settled
+                lead={<FenceDrawingTrigger ref={triggerRef} disabled={!interactive} onStart={startDrawing} />}
+                onChoose={choose}
+              />
+              <SweepReading
+                detection={detection}
+                fenceName={fence ? (fence.id === OWN_FENCE_ID ? tDrawing("own") : tFences(fence.id)) : null}
+                onOpen={openCreature}
+                onIntent={prepareCreature}
+                onRetry={() => window.location.reload()}
+              />
+            </>
+          )}
         </div>
         {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
         {supported === false ? null : (

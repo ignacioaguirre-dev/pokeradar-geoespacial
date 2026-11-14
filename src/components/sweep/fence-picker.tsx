@@ -1,18 +1,20 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
   fences: readonly { id: string; name: string }[];
   active: string | null;
   disabled?: boolean;
+  // First in the row, before the presets: drawing an own fence
+  lead?: ReactNode;
   onChoose(id: string): void;
 };
 
 // A row that scrolls sideways on phones, two columns in the desktop panel
-export function FencePicker({ fences, active, disabled = false, onChoose }: Props) {
+export function FencePicker({ fences, active, disabled = false, lead, onChoose }: Props) {
   const t = useTranslations("Sweep");
   const labelId = useId();
   return (
@@ -27,6 +29,7 @@ export function FencePicker({ fences, active, disabled = false, onChoose }: Prop
       <ul
         className={`-mx-1 flex snap-x gap-2 px-1 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0 ${disabled ? "overflow-x-hidden" : "overflow-x-auto"}`}
       >
+        {lead ? <li className="shrink-0 snap-start md:col-span-2 md:*:w-full">{lead}</li> : null}
         {fences.map(({ id, name }) => {
           const pressed = id === active;
           return (

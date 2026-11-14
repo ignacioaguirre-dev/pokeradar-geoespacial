@@ -48,6 +48,7 @@ export default async function Home() {
             Habitats: messages.Habitats,
             Fences: messages.Fences,
             Sweep: messages.Sweep,
+            FenceDrawing: messages.FenceDrawing,
             Creature: messages.Creature,
             Stats: messages.Stats,
             Types: messages.Types,

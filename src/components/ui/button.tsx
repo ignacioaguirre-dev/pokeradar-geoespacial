@@ -1,14 +1,14 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useId, type ButtonHTMLAttributes } from "react";
+import { useId, type ComponentPropsWithRef } from "react";
 
 type Props = {
   variant?: "primary" | "secondary";
   loading?: boolean;
   disabledReason?: string;
   loadingLabel?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>;
+} & ComponentPropsWithRef<"button">;
 
 const BASE =
   "relative inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-control px-7 font-sans text-body font-semibold " +
