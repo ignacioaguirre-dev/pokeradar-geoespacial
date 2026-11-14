@@ -665,7 +665,8 @@ test.describe("movement help", () => {
       await expectScreenshot(page, `home-help-intro-${width}`);
 
       await page.getByRole("button", { name: help.title }).click();
-      await expect(page.getByRole("region", { name: help.title })).toBeVisible();
+      // Phones open it as a sheet from the bottom; desktop, as a panel by the button
+      await expect(page.getByRole(width < 768 ? "dialog" : "region", { name: help.title })).toBeVisible();
       await expectScreenshot(page, `home-help-panel-${width}`);
     });
   }

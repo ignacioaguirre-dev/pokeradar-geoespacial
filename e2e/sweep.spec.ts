@@ -347,8 +347,13 @@ test.describe("with WebGL2", () => {
       await choose(page, IBERA);
       await expect(markers(page)).toHaveCount(12);
       await page.evaluate(() => document.fonts.ready);
+      // Only what is on screen: on phones the list scrolls sideways and its lazy sprites past the edge never load
       await page.waitForFunction(() =>
-        [...document.querySelectorAll<HTMLImageElement>("img")].every((img) => img.complete),
+        [...document.querySelectorAll<HTMLImageElement>("img")].every((img) => {
+          const box = img.getBoundingClientRect();
+          const onScreen = box.right > 0 && box.left < innerWidth && box.bottom > 0 && box.top < innerHeight;
+          return img.complete || !onScreen;
+        }),
       );
       await expectScreenshot(page, `sweep-${width}`);
     });
