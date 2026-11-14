@@ -120,6 +120,14 @@
   }
 }
 
+/* A short drop from under the brand, so a change of connection reads as an event; skipped under reduced motion */
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
 /* MapLibre's container clips overflow, so the default ring around the canvas is cut off; inset keeps it inside */
 @layer components {
   .maplibregl-canvas:focus-visible {

@@ -35,6 +35,7 @@ const fake = vi.hoisted(() => ({
   onIntroEnd: undefined as (() => void) | undefined,
   handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {}, skipIntro: () => {}, focus: () => {} },
   webgl2: true,
+  chunkFailures: 0,
   // While pending, the map suspends as if its chunk were still downloading
   chunk: null as Promise<void> | null,
 }));
@@ -92,6 +93,20 @@ vi.mock("@/map/base-map", async () => {
     return null;
   }
   return { BaseMap };
+});
+
+// Reading the export stands in for a download of the map's chunk; a throw is a failed one
+vi.mock("./habitat-map", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./habitat-map")>();
+  return {
+    get HabitatMap() {
+      if (fake.chunkFailures > 0) {
+        fake.chunkFailures -= 1;
+        throw new Error("ChunkLoadError");
+      }
+      return actual.HabitatMap;
+    },
+  };
 });
 
 // The real store caches per module; each test gets a fresh one so a dismissal does not leak into the next
@@ -187,6 +202,7 @@ describe("MapStage", () => {
     fake.sightings = undefined;
     fake.sweep = undefined;
     fake.webgl2 = true;
+    fake.chunkFailures = 0;
     fake.chunk = null;
     fake.intro = undefined;
     fake.introNow = undefined;
@@ -326,8 +342,10 @@ describe("MapStage", () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     await renderStage();
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Sin conexión.");
+    expect(alert).toHaveTextContent("No se pudo cargar el mapa.");
     expect(alert).toHaveTextContent("El mapa necesita internet para cargarse.");
+    // The global connection notice is the only one that says "Sin conexión."
+    expect(alert).not.toHaveTextContent("Sin conexión.");
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
   });
 
@@ -335,7 +353,71 @@ describe("MapStage", () => {
     await renderStage();
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     report("error");
-    expect(screen.getByRole("alert")).toHaveTextContent("Sin conexión.");
+    expect(screen.getByRole("alert")).toHaveTextContent("El mapa necesita internet para cargarse.");
+  });
+
+  it("remounts the map on its own when the connection comes back while offline", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await renderStage();
+    report("error");
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar el mapa.");
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(fake.mounts).toBe(2);
+    expect(fake.active).toBe(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando el mapa…");
+  });
+
+  it("remounts a failed map when the connection comes back, without moving focus", async () => {
+    await renderStage();
+    report("error");
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(fake.mounts).toBe(2);
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("keeps focus on the map region when the focused retry goes away with the reconnection", async () => {
+    await renderStage();
+    report("error");
+    screen.getByRole("button", { name: "Reintentar" }).focus();
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(document.activeElement).toBe(region());
+  });
+
+  it("leaves a working map alone when the connection comes back", async () => {
+    await renderStage();
+    report("ready");
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await flush();
+    expect(fake.mounts).toBe(1);
+  });
+
+  it("a map chunk that cannot download shows the error with retry, and retry asks for it again", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fake.chunkFailures = 1;
+    await renderStage();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("No se pudo cargar el mapa.");
+    click("Reintentar");
+    await flush();
+    expect(fake.mounts).toBe(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows the unsupported notice and never mounts the map", async () => {
@@ -910,7 +992,7 @@ describe("MapStage", () => {
       });
       await renderStage();
       expect(fake.active).toBe(0);
-      act(() => click(SKIP));
+      await act(async () => click(SKIP));
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
       expect(region()).toHaveFocus();
       fake.chunk = null;
@@ -992,6 +1074,49 @@ describe("MapStage", () => {
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
       click("Reintentar");
       await flush();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    it("does not fly again when the connection comes back after the flight and remounts a failed map", async () => {
+      await renderStage();
+      report("ready");
+      endFlight();
+      report("error");
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await flush();
+      expect(fake.mounts).toBe(2);
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    it("does not resume the flight when the connection comes back mid-flight and remounts a failed map", async () => {
+      await renderStage();
+      report("error");
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await flush();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+    });
+
+    it("a map chunk that fails during the flight leaves only the error, and retry lands without flying", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      fake.chunkFailures = 1;
+      await renderStage();
+      expect(screen.getByRole("alert")).toHaveTextContent("No se pudo cargar el mapa.");
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      expect(fake.active).toBe(0);
+      click("Reintentar");
+      await flush();
+      expect(fake.active).toBe(1);
       expect(fake.intro).toBe(false);
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
       report("ready");

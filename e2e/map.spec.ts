@@ -121,7 +121,8 @@ test.describe("with WebGL2", () => {
     test.setTimeout(60_000);
     await mockOpenFreeMap(page, { delayMs: 9_000 });
     await page.goto("/");
-    await expect(page.getByRole("status")).toContainText(t.slow, { timeout: 15_000 });
+    // The connection notice is a status too, always present and empty while online
+    await expect(page.getByRole("status").filter({ hasText: t.slow })).toBeVisible({ timeout: 15_000 });
     await waitForMapReady(page);
     await expect(page.getByText(t.slow)).toHaveCount(0);
   });
@@ -134,8 +135,11 @@ test.describe("with WebGL2", () => {
     await mockOpenFreeMap(page, { fail: true });
     await page.goto("/");
     const alert = mapAlert(page);
-    await expect(alert).toContainText(t.offlineTitle);
+    await expect(alert).toContainText(t.errorTitle);
+    await expect(alert).toContainText(t.offlineBody);
     await expect(alert.getByRole("button", { name: t.retry })).toBeVisible();
+    // The global connection notice is the only one that says so
+    await expect(page.getByText(messages.Connection.offlineTitle)).toHaveCount(1);
   });
 
   test("no layout shift while loading", async ({ page }) => {
@@ -683,7 +687,7 @@ test("explains when WebGL2 is missing", async ({ page }) => {
   await mockOpenFreeMap(page);
   const scripts = recordScripts(page);
   await page.goto("/");
-  await expect(page.getByRole("status")).toContainText(t.unsupportedTitle);
+  await expect(page.getByRole("status").filter({ hasText: t.unsupportedTitle })).toBeVisible();
   await page.waitForLoadState("networkidle");
   expect(await scriptsWithMapLibre(scripts)).toEqual([]);
 });

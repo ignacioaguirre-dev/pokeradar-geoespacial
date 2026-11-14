@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
-import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { preload } from "react-dom";
 import { FencePicker } from "@/components/sweep/fence-picker";
 import { SweepReading } from "@/components/sweep/sweep-reading";
@@ -11,6 +11,7 @@ import { Notice } from "@/components/ui/notice";
 import { FENCES } from "@/data/fences";
 import { spriteUrl } from "@/features/catalog/sprite";
 import { CREATURE_PARAM, openCreature, parseCreatureId } from "@/features/creature/history";
+import { useOnline } from "@/hooks/use-online";
 import {
   getSnapshot as hasSeenMapHelp,
   markMapHelpSeen,
@@ -24,14 +25,12 @@ import type { MapHandle, MapInput, MapStatus, SweepCreature, SweepProps } from "
 import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
 import { introPlayed } from "./intro-played";
+import { LoadBoundary, useLazyWhenOnline } from "./load-when-online";
 import { introLines, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
 
-// The notices come from MapStage, so the chunk shows nothing while it downloads.
+// The notices come from MapStage, so the chunk shows nothing while it downloads (or fails).
 // HabitatMap carries the habitat data, so it rides in this deferred chunk instead of the initial JS
-const BaseMap = dynamic(() => import("./habitat-map").then((m) => m.HabitatMap), {
-  ssr: false,
-  loading: () => null,
-});
+const loadMap = () => import("./habitat-map").then((m) => m.HabitatMap);
 
 // The controls wait for the map anyway, so each layout comes in its own chunk, into room already kept for it
 const ControlColumn = dynamic(() => import("./control-column").then((m) => m.ControlColumn), {
@@ -153,29 +152,11 @@ function useRoomyViewport(): boolean {
   );
 }
 
-function subscribeOnline(onChange: () => void) {
-  window.addEventListener("online", onChange);
-  window.addEventListener("offline", onChange);
-  return () => {
-    window.removeEventListener("online", onChange);
-    window.removeEventListener("offline", onChange);
-  };
-}
-
 // The server cannot read storage, so it renders as seen and the intro only appears after hydration.
 // The store is the single source of truth: dismissing writes there and every reader follows
 function useHelpSeen(): boolean {
   return useSyncExternalStore(subscribeMapHelp, hasSeenMapHelp, () => true);
 }
-
-function useOnline(): boolean {
-  return useSyncExternalStore(
-    subscribeOnline,
-    () => navigator.onLine,
-    () => true,
-  );
-}
-
 // A shared creature link lands on its detail, whose desktop panel would also cover the skip button
 function shouldFly(): boolean {
   if (introPlayed.current || window.matchMedia(REDUCED_MOTION_QUERY).matches) return false;
@@ -199,6 +180,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   const wide = useWideViewport();
   const roomy = useRoomyViewport();
   const online = useOnline();
+  const [BaseMap, reloadMap] = useLazyWhenOnline(loadMap);
   const pointer = usePointerKind();
   const helpSeen = useHelpSeen();
   // A ref, not state: it changes mid-gesture and is only read when the help panel opens
@@ -230,6 +212,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
     for (const { sprite } of creatures) preload(sprite, { as: "image", crossOrigin: "anonymous" });
   }, [creatures]);
 
+  const noticeRef = useRef<HTMLDivElement>(null);
   const skipRef = useRef<HTMLDivElement>(null);
   const [key, setKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -237,7 +220,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   // `mounted`, which is null during hydration, so both renders agree
   const [intro] = useState(() => typeof window !== "undefined" && shouldFly());
   const [introDone, setIntroDone] = useState(false);
-  // Only the first map flies: a retry already lost the moment
+  // Only the first map flies: a retry or a reconnect remount already lost the moment
   const flies = intro && key === 0;
 
   const mounted = supported === true;
@@ -276,9 +259,27 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
   function retry() {
     // The focused retry button unmounts with the error; the region outlives every state
     regionRef.current?.focus({ preventScroll: true });
+    restart();
+  }
+
+  function restart() {
+    reloadMap();
     setKey((k) => k + 1);
     setPhase("loading");
   }
+
+  // Reconnecting remounts a failed map; focus moves only if it sat on the retry that goes away with the error
+  const failed = phase === "error" || phase === "offline";
+  const reconnect = useEffectEvent(() => {
+    if (noticeRef.current?.contains(document.activeElement)) regionRef.current?.focus({ preventScroll: true });
+    restart();
+  });
+  useEffect(() => {
+    if (!failed) return;
+    const onOnline = () => reconnect();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [failed]);
 
   const visible =
     supported === null
@@ -370,7 +371,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
       <Notice
         key="offline"
         variant="error"
-        title={t("offlineTitle")}
+        title={t("errorTitle")}
         action={{ label: t("retry"), onActivate: retry }}
       >
         {t("offlineBody")}
@@ -405,22 +406,27 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
         className="pointer-events-auto absolute inset-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
       >
         {mounted ? (
-          <BaseMap
-            key={key}
-            ref={mapRef}
-            sightings={payload?.sightings}
-            sweep={sweep}
-            labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
-            padding={wide ? PADDING_WIDE : PADDING_NARROW}
-            intro={flies && !introDone}
-            onIntroEnd={endIntro}
-            onStatusChange={handleStatus}
-            onInputDetected={handleInputDetected}
-            onInteract={handleInteract}
-          />
+          <LoadBoundary key={key} fallback={null} onError={() => setPhase(failure())}>
+            <BaseMap
+              ref={mapRef}
+              sightings={payload?.sightings}
+              sweep={sweep}
+              labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
+              padding={wide ? PADDING_WIDE : PADDING_NARROW}
+              intro={flies && !introDone}
+              onIntroEnd={endIntro}
+              onStatusChange={handleStatus}
+              onInputDetected={handleInputDetected}
+              onInteract={handleInteract}
+            />
+          </LoadBoundary>
         ) : null}
       </section>
-      {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
+      {notice ? (
+        <div ref={noticeRef} className="pointer-events-auto relative w-full max-w-md self-center">
+          {notice}
+        </div>
+      ) : null}
       {/* From md it is no box at all: the sweep panel floats and the controls row anchors the help */}
       <div className="relative flex w-full flex-col gap-2 md:contents">
         {/* Across the bottom on phones; a floating panel at the left on desktop. Usable without the map:

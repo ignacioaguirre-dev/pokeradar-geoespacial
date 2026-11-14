@@ -160,10 +160,15 @@ describe("CreatureDetail", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("says a missing creature does not exist, with no retry", () => {
-    render(<CreatureDetail state="error" error="not-found" onRetry={noop} onClose={noop} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Esta criatura no existe.");
+  // DESIGN.md: an error says what happened, what to do, and offers the action
+  it("says a missing creature does not exist and leads back to the map, with no retry", async () => {
+    const onClose = vi.fn();
+    render(<CreatureDetail state="error" error="not-found" onRetry={noop} onClose={onClose} />);
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Esta criatura no existe.");
+    expect(alert).toHaveTextContent("Revisá el enlace o elegí otra en el mapa.");
     expect(screen.queryByRole("button", { name: "Reintentar" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cerrar" })).toBeVisible();
+    await userEvent.click(within(alert).getByRole("button", { name: "Volver al mapa" }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });
