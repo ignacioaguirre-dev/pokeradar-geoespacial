@@ -12,6 +12,7 @@ import {
   SIGHTINGS_SOURCE,
   toSightingCollection,
 } from "./sightings";
+import { draftLayers, draftSources } from "./fence-draft";
 import { sweepLayers, sweepSources } from "./sweep-style";
 
 const SOURCE = "openmaptiles";
@@ -56,6 +57,7 @@ export function buildStyle(
       // Always present, even empty: sightings that stream in later only need setData
       [SIGHTINGS_SOURCE]: { type: "geojson", data: toSightingCollection(sightings) },
       ...sweepSources(),
+      ...draftSources(),
     },
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     ...(projection ? { projection } : {}),
@@ -148,6 +150,8 @@ export function buildStyle(
       },
       // Over the dots it reveals, under the labels so names stay legible
       ...sweepLayers(colors),
+      // The fence being drawn takes the sweep's place, which is cleared meanwhile
+      ...draftLayers(colors),
       {
         id: "water-name",
         type: "symbol",

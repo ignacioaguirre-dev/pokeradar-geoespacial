@@ -29,11 +29,20 @@ const fake = vi.hoisted(() => ({
         detailPadding(): Padding;
       }
     | undefined,
+  draft: undefined as { ring: readonly (readonly [number, number])[]; onPoint(point: readonly [number, number]): void } | null | undefined,
+  keyboardHelp: undefined as string | undefined,
   intro: undefined as boolean | undefined,
   // The latest intro prop, while `intro` keeps the one the map was created with
   introNow: undefined as boolean | undefined,
   onIntroEnd: undefined as (() => void) | undefined,
-  handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {}, skipIntro: () => {}, focus: () => {} },
+  handle: {
+    zoomIn: () => {},
+    zoomOut: () => {},
+    resetView: () => {},
+    skipIntro: () => {},
+    focus: () => {},
+    reticlePoint: (): readonly [number, number] | null => null,
+  },
   webgl2: true,
   chunkFailures: 0,
   // While pending, the map suspends as if its chunk were still downloading
@@ -46,6 +55,8 @@ vi.mock("@/map/base-map", async () => {
     habitats,
     sightings,
     sweep,
+    draft,
+    labels,
     padding,
     intro,
     onIntroEnd,
@@ -57,6 +68,8 @@ vi.mock("@/map/base-map", async () => {
     habitats: typeof fake.habitats;
     sightings?: typeof fake.sightings;
     sweep?: typeof fake.sweep;
+    draft?: typeof fake.draft;
+    labels: { keyboardHelp: string };
     padding: Padding;
     intro?: boolean;
     onIntroEnd?(): void;
@@ -74,6 +87,8 @@ vi.mock("@/map/base-map", async () => {
       fake.habitats = habitats;
       fake.sightings = sightings;
       fake.sweep = sweep;
+      fake.draft = draft;
+      fake.keyboardHelp = labels.keyboardHelp;
       fake.onIntroEnd = onIntroEnd;
       fake.introNow = intro;
     });
@@ -186,6 +201,7 @@ describe("MapStage", () => {
   beforeAll(async () => {
     await Promise.all([
       import("./habitat-map"),
+      import("./fence-drawing"),
       import("./control-column"),
       import("./control-row"),
       import("@/components/ui/sheet"),
@@ -208,7 +224,15 @@ describe("MapStage", () => {
     fake.introNow = undefined;
     introPlayed.current = false;
     fake.onIntroEnd = undefined;
-    fake.handle = { zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn(), skipIntro: vi.fn(), focus: vi.fn() };
+    fake.handle = {
+      zoomIn: vi.fn(),
+      zoomOut: vi.fn(),
+      resetView: vi.fn(),
+      skipIntro: vi.fn(),
+      focus: vi.fn(),
+      reticlePoint: () => null,
+    };
+    fake.draft = undefined;
     wide = false;
     matching = new Set(["(pointer: fine) and (hover: hover)"]);
     localStorage.clear();
@@ -946,7 +970,8 @@ describe("MapStage", () => {
       await renderStage();
       report("ready");
       const fences = within(screen.getByRole("group", { name: "Cercas" })).getAllByRole("button");
-      expect(fences).toHaveLength(8);
+      // The eight presets and Trazar cerca
+      expect(fences).toHaveLength(9);
       for (const fence of fences) expect(fence).toBeDisabled();
       endFlight();
       for (const fence of fences) expect(fence).toBeEnabled();
@@ -1144,6 +1169,141 @@ describe("MapStage", () => {
       expect(screen.getByRole("button", { name: "Entendido" })).toBeInTheDocument();
       expect(fake.handle.focus).toHaveBeenCalledOnce();
       expect(screen.getByRole("button", { name: "Entendido" })).not.toHaveFocus();
+    });
+  });
+
+  describe("drawing a fence", () => {
+    // A box in Corrientes, around two creatures
+    const PAYLOAD = {
+      sightings: [
+        [25, -58.0, -28.5],
+        [7, -57.8, -28.7],
+      ] as const,
+      slugs: Object.assign(Array<string>(386).fill("x"), { 24: "pikachu", 6: "squirtle" }),
+    };
+    const IBERA_BOX = [
+      [-58.5, -29],
+      [-57.5, -29],
+      [-57.5, -28],
+      [-58.5, -28],
+    ] as const;
+    const TRACE = "Trazar cerca";
+
+    async function startDrawing() {
+      click(TRACE);
+      await flush();
+    }
+
+    function place(...points: (readonly [number, number])[]) {
+      for (const point of points) act(() => fake.draft?.onPoint(point));
+    }
+
+    it("waits for the settled map", async () => {
+      await renderStage();
+      expect(screen.getByRole("button", { name: TRACE })).toBeDisabled();
+      report("ready");
+      expect(screen.getByRole("button", { name: TRACE })).toBeEnabled();
+    });
+
+    it("entering the mode swaps the fences for its panel, clears the sweep and focuses «Sumar punto acá»", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      report("ready");
+      click("Esteros del Iberá");
+      expect(fake.sweep?.fence?.id).toBe("ibera");
+      await startDrawing();
+      expect(screen.getByRole("region", { name: "Trazando cerca" })).toBeInTheDocument();
+      expect(screen.queryByRole("group", { name: "Cercas" })).not.toBeInTheDocument();
+      expect(fake.sweep?.fence).toBeNull();
+      expect(fake.draft?.ring).toEqual([]);
+      expect(fake.keyboardHelp).toMatch(/Enter para sumar ese punto/);
+      expect(screen.getByRole("button", { name: "Sumar punto acá" })).toHaveFocus();
+    });
+
+    it("points from the map become vertices on the map", async () => {
+      await renderStage();
+      report("ready");
+      await startDrawing();
+      place(IBERA_BOX[0], IBERA_BOX[1]);
+      expect(fake.draft?.ring).toEqual([IBERA_BOX[0], IBERA_BOX[1]]);
+      expect(screen.getByText("2 de 12 vértices")).toBeInTheDocument();
+    });
+
+    it("«Sumar punto acá» adds the map's reticle point", async () => {
+      fake.handle.reticlePoint = () => IBERA_BOX[0];
+      await renderStage();
+      report("ready");
+      await startDrawing();
+      click("Sumar punto acá");
+      expect(fake.draft?.ring).toEqual([IBERA_BOX[0]]);
+    });
+
+    it("closing sweeps the drawn fence as the active one and gives the focus back to «Trazar cerca»", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      report("ready");
+      await startDrawing();
+      place(...IBERA_BOX);
+      click("Cerrar cerca");
+      expect(fake.draft).toBeNull();
+      expect(fake.sweep?.fence).toMatchObject({ id: "own", ring: IBERA_BOX });
+      expect(fake.sweep?.creatures.map((c) => c.id)).toEqual([25, 7]);
+      expect(screen.getByRole("status")).toHaveTextContent("Tu cerca: 2 criaturas detectadas");
+      expect(screen.getByRole("button", { name: TRACE })).toHaveFocus();
+      // No preset is the active one
+      expect(screen.queryByRole("button", { pressed: true })).not.toBeInTheDocument();
+    });
+
+    it("a preset chosen afterwards replaces the drawn fence", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      report("ready");
+      await startDrawing();
+      place(...IBERA_BOX);
+      click("Cerrar cerca");
+      click("Pampa húmeda");
+      expect(fake.sweep?.fence?.id).toBe("pampa");
+    });
+
+    it("cancelling, with the button or Escape, brings the last fence back and the focus to «Trazar cerca»", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      report("ready");
+      click("Esteros del Iberá");
+      await startDrawing();
+      place(IBERA_BOX[0]);
+      click("Cancelar");
+      expect(fake.draft).toBeNull();
+      expect(fake.sweep?.fence?.id).toBe("ibera");
+      expect(screen.getByRole("button", { name: TRACE })).toHaveFocus();
+      await startDrawing();
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+      expect(fake.draft).toBeNull();
+      expect(screen.getByRole("button", { name: TRACE })).toHaveFocus();
+    });
+
+    it("on phones the control column keeps moving the map while drawing", async () => {
+      await renderStage();
+      report("ready");
+      await startDrawing();
+      const column = screen.getByRole("navigation", { name: "Controles del mapa" });
+      expect(within(column).queryByRole("button", { name: TRACE })).not.toBeInTheDocument();
+      click("Acercar");
+      click("Alejar");
+      click("Ver Argentina");
+      expect(fake.handle.zoomIn).toHaveBeenCalledOnce();
+      expect(fake.handle.zoomOut).toHaveBeenCalledOnce();
+      expect(fake.handle.resetView).toHaveBeenCalledOnce();
+      expect(screen.getByRole("region", { name: "Trazando cerca" })).toBeInTheDocument();
+    });
+
+    it("a map that fails mid-drawing takes the mode with it", async () => {
+      await renderStage();
+      report("ready");
+      await startDrawing();
+      report("error");
+      expect(screen.queryByRole("region", { name: "Trazando cerca" })).not.toBeInTheDocument();
+      expect(fake.draft).toBeNull();
     });
   });
 });

@@ -95,6 +95,23 @@
     "list": "Criaturas detectadas en {fence}",
     "view": "Ver {name}"
   },
+  "FenceDrawing": {
+    "start": "Trazar cerca",
+    "own": "Tu cerca",
+    "title": "Trazando cerca",
+    "hint": "tocá el mapa para sumar vértices",
+    "count": "{count} de {max} vértices",
+    "addHere": "Sumar punto acá",
+    "undo": "Deshacer",
+    "close": "Cerrar cerca",
+    "cancel": "Cancelar",
+    "keyboardHelp": "Usá las flechas para mover el mapa bajo la mira, Enter para sumar ese punto y Escape para cancelar.",
+    "tooFew": "{missing, plural, one {Falta # vértice} other {Faltan # vértices}}",
+    "tooMany": "Llegaste al máximo de {max} vértices",
+    "crossing": "Las líneas no se pueden cruzar",
+    "tooLarge": "La cerca es demasiado grande: achicala",
+    "outside": "Tocá dentro de Argentina"
+  },
   "System": {
     "metaTitle": "Sistema · PokeRadar Geoespacial",
     "heading": "Sistema de diseño",

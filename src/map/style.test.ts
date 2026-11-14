@@ -50,7 +50,7 @@ const SIGHTINGS: CompactSighting[] = [
 const style = buildStyle(COLORS, HABITATS, SIGHTINGS);
 const layers = style.layers;
 
-const OWN_SOURCES = ["habitats", "sightings", "sweep-fence", "sweep-rings", "sweep-traces"];
+const OWN_SOURCES = ["habitats", "sightings", "sweep-fence", "sweep-rings", "sweep-traces", "fence-draft"];
 
 describe("buildStyle", () => {
   it("every layer reads an OpenMapTiles source-layer", () => {
@@ -230,6 +230,39 @@ describe("sweep layers", () => {
     expect(traces.paint?.["line-gradient"]).toEqual([
       "interpolate", ["linear"], ["line-progress"], 0, "marker-trace00", 1, "marker-trace00",
     ]);
+  });
+});
+
+describe("fence draft layers", () => {
+  const index = (id: string) => layers.findIndex((l) => l.id === id);
+  const DRAFT = ["fence-draft-edges", "fence-draft-closing", "fence-draft-vertices"];
+
+  it("starts empty", () => {
+    expect(style.sources["fence-draft"]).toEqual({
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  });
+
+  it("draws over the sweep and under every label, vertices on top", () => {
+    const positions = DRAFT.map(index);
+    expect(positions.every((p) => p > index("sweep-traces"))).toBe(true);
+    expect(positions.every((p) => p < index("water-name"))).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  it("uses only the sweep color, the closing edge dashed", () => {
+    const [edges, closing, vertices] = DRAFT.map((id) => layers.find((l) => l.id === id));
+    if (edges?.type !== "line" || closing?.type !== "line" || vertices?.type !== "circle") {
+      throw new Error("missing draft layers");
+    }
+    expect(edges.paint?.["line-color"]).toBe("marker-sweep");
+    expect(edges.paint?.["line-dasharray"]).toBeUndefined();
+    expect(closing.paint?.["line-color"]).toBe("marker-sweep");
+    expect(closing.paint?.["line-dasharray"]).toBeDefined();
+    expect(vertices.paint?.["circle-color"]).toBe("marker-sweep");
+    // Flat dots: no ring of another color around them
+    expect(vertices.paint?.["circle-stroke-width"]).toBeUndefined();
   });
 });
 
