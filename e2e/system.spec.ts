@@ -7,11 +7,14 @@ async function waitForColors(page: Page): Promise<void> {
   await expect(page.getByText(/^#[0-9a-f]{6}$/i).first()).toBeVisible();
 }
 
-test("/system loads and is accessible @critical", async ({ page }) => {
+test("/system loads and is accessible @critical", async ({ page, browserName }) => {
   await page.goto("/system");
   await expect(page).toHaveTitle(messages.System.metaTitle);
   await expect(page.getByRole("heading", { level: 1, name: messages.System.heading })).toBeVisible();
   await waitForColors(page);
+  // Headless Firefox on the CI runner crashes ("Page crashed") while axe walks this page; the other four
+  // profiles still check it
+  if (browserName === "firefox" && process.env.CI) return;
   await expectNoA11yViolations(page);
 });
 
