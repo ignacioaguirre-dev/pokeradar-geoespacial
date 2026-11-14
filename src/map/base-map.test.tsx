@@ -35,6 +35,7 @@ const fake = vi.hoisted(() => {
       return this;
     }
     emit(type: string, event?: unknown) {
+      if (type === "load") this.loaded = true;
       for (const handler of this.handlers.get(type) ?? []) handler(event);
     }
     getCanvas() {
@@ -42,6 +43,12 @@ const fake = vi.hoisted(() => {
     }
     getZoom() {
       return 3.14159;
+    }
+    // MapLibre only exposes the style's sources once it has loaded
+    loaded = false;
+    setData = vi.fn();
+    getSource(id: string) {
+      return this.loaded && id in this.options.style.sources ? { setData: this.setData } : undefined;
     }
     remove() {
       this.removed += 1;
@@ -61,6 +68,7 @@ vi.mock("./colors", () => ({
     province: "marker-province",
     label: "marker-label",
     city: "marker-city",
+    sighting: "marker-sighting",
     biome: {
       forest: "marker-forest",
       grassland: "marker-grassland",
@@ -86,6 +94,51 @@ describe("BaseMap", () => {
   beforeEach(() => {
     fake.FakeMap.instances = [];
     fake.FakeMap.throwOnCreate = false;
+  });
+
+  it("hands the sightings to the style", () => {
+    render(
+      <BaseMap
+        habitats={habitats}
+        sightings={[[25, -58.4, -34.6]]}
+        labels={labels}
+        padding={padding}
+        onStatusChange={vi.fn()}
+      />,
+    );
+    expect(lastMap().options.style.sources.sightings.data).toMatchObject({ features: [{ properties: { speciesId: 25 } }] });
+  });
+
+  // They stream in after the map was created (or never, when the catalog is down)
+  it("updates the sightings that arrive after load without recreating the map", () => {
+    const props = { habitats, labels, padding, onStatusChange: vi.fn() };
+    const { rerender } = render(<BaseMap {...props} />);
+    lastMap().emit("load");
+    rerender(<BaseMap {...props} sightings={[[25, -58.4, -34.6]]} />);
+    expect(fake.FakeMap.instances).toHaveLength(1);
+    expect(lastMap().setData).toHaveBeenCalledWith(
+      expect.objectContaining({ features: [expect.objectContaining({ properties: { speciesId: 25 } })] }),
+    );
+  });
+
+  it("applies sightings that arrive before load once the style is ready", () => {
+    const props = { habitats, labels, padding, onStatusChange: vi.fn() };
+    const { rerender } = render(<BaseMap {...props} />);
+    rerender(<BaseMap {...props} sightings={[[7, -60.1, -45.2]]} />);
+    expect(lastMap().setData).not.toHaveBeenCalled();
+    lastMap().emit("load");
+    expect(lastMap().setData).toHaveBeenCalledOnce();
+    expect(lastMap().setData).toHaveBeenCalledWith(
+      expect.objectContaining({ features: [expect.objectContaining({ properties: { speciesId: 7 } })] }),
+    );
+  });
+
+  it("does not reload sightings the style already has", () => {
+    render(
+      <BaseMap habitats={habitats} sightings={[[25, -58.4, -34.6]]} labels={labels} padding={padding} onStatusChange={vi.fn()} />,
+    );
+    lastMap().emit("load");
+    expect(lastMap().setData).not.toHaveBeenCalled();
   });
 
   it("hands the habitats to the style", () => {

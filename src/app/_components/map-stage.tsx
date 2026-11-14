@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { useResolved } from "@/hooks/use-resolved";
+import type { CompactSighting } from "@/domain/sightings/compact";
 import type { MapHandle, MapStatus } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
 import { HabitatLegend } from "./habitat-legend";
@@ -85,7 +87,9 @@ function failure(): Phase {
   return navigator.onLine === false ? "offline" : "error";
 }
 
-export function MapStage() {
+// Sightings stream with the page; the map never waits for them (the catalog may be slow or down)
+export function MapStage({ sightings: pending }: { sightings?: Promise<readonly CompactSighting[]> }) {
+  const sightings = useResolved(pending);
   const t = useTranslations("Map");
   const supported = useWebGL2Support();
   const wide = useWideViewport();
@@ -173,6 +177,7 @@ export function MapStage() {
           <BaseMap
             key={key}
             ref={mapRef}
+            sightings={sightings}
             labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
             padding={wide ? PADDING_WIDE : PADDING_NARROW}
             onStatusChange={handleStatus}

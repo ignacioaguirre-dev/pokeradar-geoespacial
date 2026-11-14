@@ -7,8 +7,9 @@ const full = process.env.E2E_FULL === "1";
 const criticalOnly = full
   ? { grepInvert: /@visual/ }
   : { grep: /@critical/, grepInvert: /@visual/ };
-// Own port so a running `pnpm dev` on 3000 is never reused
-const port = 3100;
+// Own port so a running `pnpm dev` on 3000 is never reused; E2E_PORT keeps parallel worktrees from
+// reusing each other's server
+const port = Number(process.env.E2E_PORT) || 3100;
 
 export default defineConfig({
   testDir: "e2e",

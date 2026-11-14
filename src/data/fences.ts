@@ -1,6 +1,5 @@
 import type { Fence } from "@/domain/geometry/types";
-
-export type AreaHabitat = "forest" | "grassland" | "mountain" | "rough-terrain" | "sea" | "waters-edge";
+import type { AreaHabitat } from "@/domain/habitat/types";
 
 // The habitat its centroid falls in; the visible name lives in the Fences namespace of next-intl
 export type PresetFence = Fence & { readonly habitat: AreaHabitat };

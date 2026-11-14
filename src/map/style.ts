@@ -2,7 +2,15 @@ import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
 import { BIOME_OPACITY } from "@/domain/color/biome";
 import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { MapColors } from "./colors";
+import type { CompactSighting } from "@/domain/sightings/compact";
 import type { HabitatCollection } from "./habitats";
+import {
+  SIGHTING_MIN_ZOOM,
+  SIGHTING_OPACITY,
+  SIGHTING_RADIUS,
+  SIGHTINGS_SOURCE,
+  toSightingCollection,
+} from "./sightings";
 
 const SOURCE = "openmaptiles";
 const HABITATS = "habitats";
@@ -30,13 +38,19 @@ function habitatColor({ biome, land }: MapColors): ExpressionSpecification {
   ];
 }
 
-export function buildStyle(colors: MapColors, habitats: HabitatCollection): StyleSpecification {
+export function buildStyle(
+  colors: MapColors,
+  habitats: HabitatCollection,
+  sightings: readonly CompactSighting[] = [],
+): StyleSpecification {
   const habitatPaint = { "fill-color": habitatColor(colors), "fill-opacity": BIOME_OPACITY };
   return {
     version: 8,
     sources: {
       [SOURCE]: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
       [HABITATS]: { type: "geojson", data: habitats },
+      // Always present, even empty: sightings that stream in later only need setData
+      [SIGHTINGS_SOURCE]: { type: "geojson", data: toSightingCollection(sightings) },
     },
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     layers: [
@@ -104,6 +118,18 @@ export function buildStyle(colors: MapColors, habitats: HabitatCollection): Styl
         "source-layer": "boundary",
         filter: ["all", ["==", ["get", "admin_level"], 2], ON_LAND],
         paint: { "line-color": colors.border, "line-width": 1.2 },
+      },
+      {
+        // Over the biomes and borders so the dots read, under the labels so names stay legible
+        id: SIGHTINGS_SOURCE,
+        type: "circle",
+        source: SIGHTINGS_SOURCE,
+        minzoom: SIGHTING_MIN_ZOOM,
+        paint: {
+          "circle-radius": SIGHTING_RADIUS,
+          "circle-color": colors.sighting,
+          "circle-opacity": SIGHTING_OPACITY,
+        },
       },
       {
         id: "water-name",

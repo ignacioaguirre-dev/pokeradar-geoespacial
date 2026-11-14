@@ -1,6 +1,5 @@
 import type { LngLat } from "@/domain/geometry/types";
-
-export type SiteHabitat = "urban" | "cave" | "rare";
+import type { SiteHabitat } from "@/domain/habitat/types";
 
 // Visible names live in the Sites namespace of next-intl, keyed by id
 export type Site = { readonly id: string; readonly habitat: SiteHabitat; readonly point: LngLat };
