@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef } from "react";
 import { ARGENTINA_BOUNDS, MAX_BOUNDS, MIN_ZOOM } from "./argentina";
 import { readMapColors } from "./colors";
+import type { HabitatCollection } from "./habitats";
 import { buildStyle } from "./style";
 
 // Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
@@ -22,6 +23,7 @@ export type MapHandle = {
 type Padding = { top: number; right: number; bottom: number; left: number };
 
 type BaseMapProps = {
+  habitats: HabitatCollection;
   labels: { region: string; keyboardHelp: string };
   padding: Padding;
   onStatusChange(status: MapStatus): void;
@@ -33,7 +35,7 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) {
+export function BaseMap({ habitats, labels, padding, onStatusChange, ref }: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const helpId = useId();
@@ -45,7 +47,7 @@ export function BaseMap({ labels, padding, onStatusChange, ref }: BaseMapProps) 
     (container: HTMLDivElement) =>
       new MapLibreMap({
         container,
-        style: buildStyle(readMapColors()),
+        style: buildStyle(readMapColors(), habitats),
         bounds: ARGENTINA_BOUNDS,
         // Absolute so the fit also sets the map padding and the padding effect starts as a no-op
         fitBoundsOptions: { padding, absolutePadding: true },

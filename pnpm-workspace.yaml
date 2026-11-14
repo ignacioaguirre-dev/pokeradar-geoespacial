@@ -1,6 +1,10 @@
 allowBuilds:
   "@parcel/watcher": false
   "@swc/core": false
+  # mapshaper extras we do not use (GeoPackage, msgpack acceleration); esbuild ships its binary as an optional package
+  better-sqlite3: false
+  esbuild: false
+  msgpackr-extract: false
   sharp: false
   unrs-resolver: false
 auditConfig:

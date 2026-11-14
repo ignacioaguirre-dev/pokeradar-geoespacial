@@ -1,3 +1,5 @@
+import type { AreaHabitat } from "./habitats";
+
 export type MapColors = {
   sea: string;
   land: string;
@@ -6,6 +8,7 @@ export type MapColors = {
   province: string;
   label: string;
   city: string;
+  biome: Record<AreaHabitat, string>;
 };
 
 // The style needs literal colors; reading the tokens keeps globals.css the only source
@@ -20,5 +23,13 @@ export function readMapColors(): MapColors {
     province: token("map-province"),
     label: token("muted"),
     city: token("foreground"),
+    biome: {
+      forest: token("biome-forest"),
+      grassland: token("biome-grassland"),
+      "waters-edge": token("biome-waters-edge"),
+      mountain: token("biome-mountain"),
+      "rough-terrain": token("biome-rough-terrain"),
+      sea: token("biome-sea"),
+    },
   };
 }

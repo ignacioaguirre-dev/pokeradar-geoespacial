@@ -1,8 +1,11 @@
 import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
-import { ARGENTINA_OUTLINE } from "./argentina-outline";
+import { BIOME_OPACITY } from "@/domain/color/biome";
+import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { MapColors } from "./colors";
+import type { HabitatCollection } from "./habitats";
 
 const SOURCE = "openmaptiles";
+const HABITATS = "habitats";
 const NAME: ExpressionSpecification = [
   "coalesce",
   ["get", "name:es"],
@@ -13,11 +16,27 @@ const NAME: ExpressionSpecification = [
 const IN_ARGENTINA: ExpressionSpecification = ["within", ARGENTINA_OUTLINE];
 const ON_LAND: ExpressionSpecification = ["!=", ["get", "maritime"], 1];
 
-export function buildStyle(colors: MapColors): StyleSpecification {
+function habitatColor({ biome, land }: MapColors): ExpressionSpecification {
+  return [
+    "match",
+    ["get", "habitat"],
+    "forest", biome.forest,
+    "grassland", biome.grassland,
+    "waters-edge", biome["waters-edge"],
+    "mountain", biome.mountain,
+    "rough-terrain", biome["rough-terrain"],
+    "sea", biome.sea,
+    land,
+  ];
+}
+
+export function buildStyle(colors: MapColors, habitats: HabitatCollection): StyleSpecification {
+  const habitatPaint = { "fill-color": habitatColor(colors), "fill-opacity": BIOME_OPACITY };
   return {
     version: 8,
     sources: {
       [SOURCE]: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
+      [HABITATS]: { type: "geojson", data: habitats },
     },
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     layers: [
@@ -27,11 +46,27 @@ export function buildStyle(colors: MapColors): StyleSpecification {
         paint: { "background-color": colors.land },
       },
       {
+        // Under the water layer, so OSM lakes and rivers still cut through the ecoregions
+        id: "habitats",
+        type: "fill",
+        source: HABITATS,
+        filter: ["!=", ["get", "habitat"], "sea"],
+        paint: habitatPaint,
+      },
+      {
         id: "water",
         type: "fill",
         source: SOURCE,
         "source-layer": "water",
         paint: { "fill-color": colors.sea },
+      },
+      {
+        // The shelf sea tints the base ocean; the coastline still draws over it
+        id: "habitat-sea",
+        type: "fill",
+        source: HABITATS,
+        filter: ["==", ["get", "habitat"], "sea"],
+        paint: habitatPaint,
       },
       {
         id: "coastline",
