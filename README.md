@@ -65,6 +65,8 @@ Dirección de dependencias: `domain ← features ← components ← app`; `hooks
 
 - CI en cada PR: lint, tipos, unitarios con umbral de cobertura, build, E2E y auditoría de dependencias (`pnpm audit`).
 - E2E en cinco perfiles (Chrome, Firefox y Safari de escritorio, Android e iPhone): chromium corre todo y los demás los flujos `@critical`; las ramas de release corren la suite completa en todos. Ningún test pega contra los servicios reales: PokéAPI y OpenFreeMap se reemplazan por fixtures.
+- Accesibilidad automatizada: axe con las reglas de WCAG 2.2 AA corre en E2E sobre la portada, el mapa cargado, la ayuda de controles (escritorio y celular), el detalle y `/system`; otros E2E recorren el orden de foco y el anillo de foco con teclado. Un test (`tooling/tokens.test.ts`) exige el contraste mínimo de cada par de colores según su uso y falla si algún archivo de `src` usa un color fuera de los tokens.
+- Rendimiento automatizado: el presupuesto de JS inicial (`e2e/bundle.spec.ts`) y un E2E que mide el desplazamiento de layout (CLS) durante la carga del mapa y falla por encima de 0,01.
 - Capturas visuales con base en Linux, regenerada en Docker.
 - Cabeceras de seguridad con CSP, `nosniff`, `Referrer-Policy` y `Permissions-Policy` (`next.config.ts`), verificadas en `e2e/security.spec.ts`.
 
@@ -79,7 +81,7 @@ Gitflow: `main` para producción, `develop` como base y una rama `feat/*`, `fix/
 - **Claude Code** como agente principal, con subagentes para implementar y para revisar.
 - **Worktrees de Orca** para correr varias unidades en paralelo, con un agente por rama.
 - **Claude Design** para armar artefactos que comparan paletas del mapa y direcciones de arte lado a lado antes de decidir.
-- **Skills de revisión**: `vercel-react-best-practices` e `impeccable`.
+- **Skills de revisión**: `vercel-react-best-practices` e `impeccable`. Con `impeccable critique` la IA evalúa una pantalla con las 10 heurísticas de Nielsen y le pone puntaje a cada una. No es un test automático: el informe lo lee una persona y decide qué se corrige.
 - **Revisión en dos lentes por unidad**: una contra la spec, la calidad y las reglas del repo; otra con las buenas prácticas de React y Next. Los hallazgos de las dos van en una sola ronda de arreglos.
 
 ### Para qué
