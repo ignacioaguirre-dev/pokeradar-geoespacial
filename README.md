@@ -2,7 +2,7 @@
 
 Una expedición sobre el mapa de Argentina: las criaturas de PokéAPI aparecen en ecorregiones reales y cada ubicación tiene su porqué.
 
-**App:** <!-- URL de producción -->
+**App:** https://pokeradar-geoespacial.vercel.app/
 
 ## 1. Concepto y narrativa
 
@@ -29,7 +29,7 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 | TypeScript estricto | `strict` y `no-explicit-any` en error (de `eslint-config-next/typescript`): no hay ningún `any` en el código. |
 | Tailwind CSS 4 | Tokens propios que reemplazan la paleta por defecto; se ven en `/system`. |
 | MapLibre GL + OpenFreeMap | Tiles vectoriales gratuitos, sin API key, con estilo propio (`src/map/style.ts`). |
-| `motion` | Transiciones por estado del panel; lo ambiental queda en CSS. |
+| `motion` (el nombre actual de Framer Motion) | Transiciones por estado del panel y de las hojas; lo ambiental queda en CSS. |
 | next-intl | Interfaz en castellano (es-AR) desde `messages/es-AR.json`. |
 | zod | Valida las respuestas de PokéAPI en la frontera. |
 | Vitest, Testing Library, fast-check | Unitarios, componentes por rol y texto, propiedades para la geometría. |
