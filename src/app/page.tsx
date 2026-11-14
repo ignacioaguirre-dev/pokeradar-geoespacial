@@ -2,7 +2,9 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { preconnect } from "react-dom";
 import { toCompact } from "@/domain/sightings/compact";
+import { loadCatalog } from "@/features/catalog/queries";
 import { loadSightings } from "@/features/sightings/queries";
+import type { SightingsPayload } from "@/features/sweep/types";
 import { MapStage } from "./_components/map-stage";
 
 const ATTRIBUTION_LINK =
@@ -12,10 +14,18 @@ const ATTRIBUTION_LINK =
 export default async function Home() {
   // Started first so it overlaps the translations. Not awaited: a failed catalog is cached only briefly,
   // so awaiting it here would make the build depend on PokéAPI. Handed over as a promise, the route stays
-  // prerendered and the dots stream in. On failure the layer stays empty; the data notice arrives with the sweep
-  const sightings = loadSightings().then((loaded) => (loaded.ok ? toCompact(loaded.data) : []));
+  // prerendered and the dots stream in. On failure it is null: the dots stay off and the sweep says so.
+  // The catalog is the same cached call loadSightings already made; it adds the slugs that name each marker
+  const sightings: Promise<SightingsPayload | null> = Promise.all([loadSightings(), loadCatalog()]).then(
+    ([loaded, catalog]) =>
+      loaded.ok && catalog.ok
+        ? { sightings: toCompact(loaded.data), slugs: catalog.data.map((species) => species.slug) }
+        : null,
+  );
   // MapLibre fetches the TileJSON with CORS, so only an anonymous connection gets reused
   preconnect("https://tiles.openfreemap.org", { crossOrigin: "anonymous" });
+  // Sprites and cries; the markers and the list load their sprites anonymously to share this connection
+  preconnect("https://raw.githubusercontent.com", { crossOrigin: "anonymous" });
   const [t, tMap, messages] = await Promise.all([
     getTranslations("Home"),
     getTranslations("Map"),
@@ -38,6 +48,8 @@ export default async function Home() {
             Map: messages.Map,
             Button: messages.Button,
             Habitats: messages.Habitats,
+            Fences: messages.Fences,
+            Sweep: messages.Sweep,
             Creature: messages.Creature,
             Stats: messages.Stats,
             Types: messages.Types,

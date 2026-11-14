@@ -26,6 +26,7 @@ export const TOKENS: readonly Token[] = [
   { name: "biome-mountain", swatch: "bg-biome-mountain" },
   { name: "biome-rough-terrain", swatch: "bg-biome-rough-terrain" },
   { name: "biome-sea", swatch: "bg-biome-sea" },
+  { name: "sweep", swatch: "bg-sweep" },
 ];
 
 const DISPLAY = "font-display font-stretch-condensed font-bold uppercase";

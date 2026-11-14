@@ -3,13 +3,16 @@
 // Static on purpose: next/dynamic already defers this whole file, so import() here would chain a second download
 import { type GeoJSONSource, Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef } from "react";
+import { type Ref, useEffect, useEffectEvent, useId, useImperativeHandle, useRef, useState } from "react";
 import { ARGENTINA_BOUNDS, MAX_BOUNDS, MIN_ZOOM } from "./argentina";
 import { readMapColors } from "./colors";
 import type { CompactSighting } from "@/domain/sightings/compact";
 import type { HabitatCollection } from "./habitats";
 import { SIGHTINGS_SOURCE, toSightingCollection } from "./sightings";
 import { buildStyle } from "./style";
+import { type SweepProps, useSweep } from "./use-sweep";
+
+export type { SweepCreature, SweepFence, SweepProps } from "./use-sweep";
 
 // Bundled, MapLibre cannot locate its worker from import.meta.url; this makes the bundler emit and serve it
 setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
@@ -30,6 +33,8 @@ type BaseMapProps = {
   sightings?: readonly CompactSighting[];
   labels: { region: string; keyboardHelp: string };
   padding: Padding;
+  // The chosen fence and what it detected; the sweep logic lives in ./use-sweep
+  sweep?: SweepProps;
   onStatusChange(status: MapStatus): void;
   ref?: Ref<MapHandle>;
 };
@@ -39,12 +44,14 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, ref }: BaseMapProps) {
+export function BaseMap({ habitats, sightings, labels, padding, sweep, onStatusChange, ref }: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const helpId = useId();
   // The sightings the map's source holds, so a re-render with the same list does not reload it
   const appliedSightings = useRef<readonly CompactSighting[] | undefined>(undefined);
+  // Set once the style loads: the sweep draws on sources that exist only from then on
+  const [loadedMap, setLoadedMap] = useState<MapLibreMap | null>(null);
 
   const reportStatus = useEffectEvent((status: MapStatus) => onStatusChange(status));
 
@@ -104,6 +111,7 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
       loaded = true;
       writeZoom();
       syncSightings();
+      setLoadedMap(map);
       if (!failed) reportStatus("ready");
     });
     // Only a style or source failure before load breaks the map; after load, or for a single tile
@@ -127,6 +135,8 @@ export function BaseMap({ habitats, sightings, labels, padding, onStatusChange, 
   }, [helpId]);
 
   useEffect(() => syncSightings(), [sightings]);
+
+  useSweep(loadedMap, sweep);
 
   const { top, right, bottom, left } = padding;
   useEffect(() => {

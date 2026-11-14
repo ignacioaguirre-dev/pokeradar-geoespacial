@@ -1,8 +1,9 @@
 import { fireEvent } from "@testing-library/react";
 import { act, type Ref } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@/testing/render";
+import { render, screen, within } from "@/testing/render";
 import type { MapStatus } from "@/map/base-map";
+import { preloadCreaturePanel } from "./creature-route";
 import { MapStage } from "./map-stage";
 
 type Padding = { top: number; right: number; bottom: number; left: number };
@@ -14,6 +15,15 @@ const fake = vi.hoisted(() => ({
   padding: null as { top: number; right: number; bottom: number; left: number } | null,
   habitats: null as { features: { properties: { habitat: string } }[] } | null,
   sightings: undefined as readonly (readonly [number, number, number])[] | undefined,
+  sweep: undefined as
+    | {
+        fence: { id: string } | null;
+        creatures: readonly { id: number; label: string; sprite: string }[];
+        focus: number | null;
+        onSelect(id: number): void;
+        fencePadding(): Padding;
+      }
+    | undefined,
   handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {} },
   webgl2: true,
 }));
@@ -23,12 +33,14 @@ vi.mock("@/map/base-map", async () => {
   function BaseMap({
     habitats,
     sightings,
+    sweep,
     padding,
     onStatusChange,
     ref,
   }: {
     habitats: typeof fake.habitats;
     sightings?: typeof fake.sightings;
+    sweep?: typeof fake.sweep;
     padding: Padding;
     onStatusChange(status: MapStatus): void;
     ref?: Ref<typeof fake.handle>;
@@ -38,6 +50,7 @@ vi.mock("@/map/base-map", async () => {
       fake.padding = padding;
       fake.habitats = habitats;
       fake.sightings = sightings;
+      fake.sweep = sweep;
     });
     useEffect(() => {
       fake.mounts += 1;
@@ -54,7 +67,7 @@ vi.mock("@/map/base-map", async () => {
 
 vi.mock("@/map/supports-webgl2", () => ({ supportsWebGL2: () => fake.webgl2 }));
 // The detail reads the URL through the Next router, which these tests do not mount
-vi.mock("./creature-route", () => ({ CreatureRoute: () => null }));
+vi.mock("./creature-route", () => ({ CreatureRoute: () => null, preloadCreaturePanel: vi.fn() }));
 
 const WIDE = "(min-width: 768px)";
 let wide = false;
@@ -113,6 +126,7 @@ describe("MapStage", () => {
     fake.padding = null;
     fake.habitats = null;
     fake.sightings = undefined;
+    fake.sweep = undefined;
     fake.webgl2 = true;
     fake.handle = { zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn() };
     wide = false;
@@ -296,7 +310,7 @@ describe("MapStage", () => {
   });
 
   it("hands the sightings to the map once they resolve", async () => {
-    render(<MapStage sightings={Promise.resolve([[25, -58.4, -34.6] as const])} />);
+    render(<MapStage sightings={Promise.resolve({ sightings: [[25, -58.4, -34.6] as const], slugs: [] })} />);
     await flush();
     expect(fake.sightings).toEqual([[25, -58.4, -34.6]]);
   });
@@ -321,10 +335,105 @@ describe("MapStage", () => {
 
   it("updates the map padding when the viewport widens", async () => {
     await renderStage();
-    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 204, left: 12 });
+    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 284, left: 12 });
     wide = true;
     act(() => mediaListeners.forEach((listener) => listener()));
-    expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 120 });
+    expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 352 });
     expect(fake.mounts).toBe(1);
+  });
+
+  describe("sweep", () => {
+    // Two creatures inside Esteros del Iberá, one far away in Patagonia
+    const PAYLOAD = {
+      sightings: [
+        [25, -57.4, -28.8],
+        [7, -57.1, -29.2],
+        [41, -69, -46.5],
+      ] as const,
+      slugs: Object.assign(Array<string>(386).fill("x"), { 24: "pikachu", 6: "squirtle", 40: "zubat" }),
+    };
+
+    afterEach(() => window.history.replaceState(null, "", "/"));
+
+    it("lists the eight fences, none chosen, and says what to do", async () => {
+      await renderStage();
+      const group = screen.getByRole("group", { name: "Cercas" });
+      expect(within(group).getAllByRole("button", { pressed: false })).toHaveLength(8);
+      expect(screen.getByText("Elegí una cerca para barrerla.")).toBeInTheDocument();
+      expect(fake.sweep?.fence).toBeNull();
+    });
+
+    it("choosing a fence sweeps it: the map gets the fence and its creatures, the reading the count", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(screen.getByRole("button", { name: "Esteros del Iberá", pressed: true })).toBeInTheDocument();
+      expect(fake.sweep?.fence?.id).toBe("ibera");
+      expect(fake.sweep?.creatures.map((c) => [c.id, c.label])).toEqual([
+        [25, "Ver Pikachu"],
+        [7, "Ver Squirtle"],
+      ]);
+      expect(fake.sweep?.creatures[0].sprite).toMatch(/\/25\.png$/);
+      expect(screen.getByText(/criaturas detectadas/).closest("[role=status]")).toHaveTextContent(
+        "2 criaturas detectadas",
+      );
+    });
+
+    it("a creature from the list or a marker opens its detail in the URL", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      click("Ver Squirtle");
+      expect(window.location.search).toBe("?creature=7");
+      act(() => fake.sweep?.onSelect(25));
+      expect(window.location.search).toBe("?creature=25");
+    });
+
+    it("frames the fence above the reading on phones and beside the panel on desktop", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(fake.sweep?.fencePadding()).toEqual({ top: 64, right: 12, bottom: 336, left: 12 });
+      wide = true;
+      act(() => mediaListeners.forEach((listener) => listener()));
+      expect(fake.sweep?.fencePadding()).toEqual({ top: 96, right: 120, bottom: 72, left: 352 });
+    });
+
+    it("an empty fence says so", async () => {
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Mar Argentino");
+      expect(screen.getByText("No hay criaturas en esta cerca. Probá con otra.")).toBeInTheDocument();
+      expect(fake.sweep?.creatures).toEqual([]);
+    });
+
+    it("when the creatures could not load, the sweep says so with a retry", async () => {
+      render(<MapStage sightings={Promise.resolve(null)} />);
+      await flush();
+      click("Pampa húmeda");
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("No pudimos cargar las criaturas.");
+      expect(within(alert).getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    });
+
+    // Touch screens never hover: the detail's code comes once the map is up and the browser idle
+    it("loads the detail panel's code once the map is ready", async () => {
+      vi.mocked(preloadCreaturePanel).mockClear();
+      await renderStage();
+      await advance(10);
+      expect(preloadCreaturePanel).not.toHaveBeenCalled();
+      report("ready");
+      await advance(10);
+      expect(preloadCreaturePanel).toHaveBeenCalledOnce();
+    });
+
+    // Without WebGL there is no map, but the list still reaches every creature
+    it("works without the map: the picker and the list stay", async () => {
+      fake.webgl2 = false;
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      click("Esteros del Iberá");
+      expect(screen.getByRole("button", { name: "Ver Pikachu" })).toBeInTheDocument();
+    });
   });
 });

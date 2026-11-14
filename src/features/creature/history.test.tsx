@@ -45,4 +45,28 @@ describe("openCreature and closeCreature", () => {
     expect(window.location.search).toBe("?zoom=3");
     expect(window.history.length).toBe(length);
   });
+
+  // Hopping between creatures must not pile entries up: one back still closes the panel
+  it("opening another creature with the panel open replaces the entry", () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    openCreature(25);
+    const length = window.history.length;
+    openCreature(7);
+    expect(window.location.search).toBe("?creature=7");
+    expect(window.history.length).toBe(length);
+    closeCreature();
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("opening another creature over a shared link keeps closing inside the app", () => {
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    window.history.replaceState(null, "", "/?creature=25");
+    const length = window.history.length;
+    openCreature(7);
+    expect(window.location.search).toBe("?creature=7");
+    expect(window.history.length).toBe(length);
+    closeCreature();
+    expect(back).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
+  });
 });

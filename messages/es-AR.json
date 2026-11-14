@@ -56,6 +56,19 @@
     "sea": "Mar Argentino",
     "misiones": "Selva misionera"
   },
+  "Sweep": {
+    "fences": "Cercas",
+    "hint": "Elegí una cerca para barrerla.",
+    "detected": "<n>{count}</n> {count, plural, one {criatura detectada} other {criaturas detectadas}}",
+    "weak": " y <n>{count}</n> {count, plural, one {señal débil} other {señales débiles}}: achicá la cerca para resolverlas.",
+    "empty": "No hay criaturas en esta cerca. Probá con otra.",
+    "loading": "Buscando criaturas…",
+    "unavailableTitle": "No pudimos cargar las criaturas.",
+    "unavailableBody": "Probá de nuevo en unos segundos.",
+    "retry": "Reintentar",
+    "list": "Criaturas detectadas en {fence}",
+    "view": "Ver {name}"
+  },
   "System": {
     "metaTitle": "Sistema · PokeRadar Geoespacial",
     "heading": "Sistema de diseño",
@@ -101,7 +114,8 @@
         "biome-waters-edge": "Esteros del Iberá",
         "biome-mountain": "Cerro de los Siete Colores",
         "biome-rough-terrain": "Arcillas de Ischigualasto",
-        "biome-sea": "Mar Argentino frente a Península Valdés"
+        "biome-sea": "Mar Argentino frente a Península Valdés",
+        "sweep": "Costra de sal de Salinas Grandes al atardecer"
       },
       "usage": {
         "base": "Fondo base",

@@ -2,14 +2,21 @@
 
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
-import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { FencePicker } from "@/components/sweep/fence-picker";
+import { SweepReading } from "@/components/sweep/sweep-reading";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { FENCES } from "@/data/fences";
+import { spriteUrl } from "@/features/catalog/sprite";
+import { openCreature } from "@/features/creature/history";
+import { prefetchCreature } from "@/features/creature/use-creature";
+import type { SightingsPayload } from "@/features/sweep/types";
+import { useFenceSweep } from "@/features/sweep/use-fence-sweep";
 import { useResolved } from "@/hooks/use-resolved";
-import type { CompactSighting } from "@/domain/sightings/compact";
-import type { MapHandle, MapStatus } from "@/map/base-map";
+import type { MapHandle, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
 import { supportsWebGL2 } from "@/map/supports-webgl2";
-import { CreatureRoute } from "./creature-route";
+import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
 import { HabitatLegend } from "./habitat-legend";
 
 // The notices come from MapStage, so the chunk shows nothing while it downloads.
@@ -25,8 +32,44 @@ const TIMEOUT_MS = 30_000;
 // Module constants keep their identity, so BaseMap only reacts to a real change
 // Narrow bottom = legend row (44) + gap (8) + controls (44) + gap (8) + attribution wrapped to two lines (88) + margin,
 // so Tierra del Fuego stays clear
-const PADDING_NARROW = { top: 64, right: 12, bottom: 204, left: 12 };
-const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 120 };
+// + the fence row (44 + 8) and its one-line reading (20 + 8)
+const PADDING_NARROW = { top: 64, right: 12, bottom: 284, left: 12 };
+// Left clears the sweep panel (320 wide at 12 from the edge)
+const PADDING_WIDE = { top: 96, right: 120, bottom: 72, left: 352 };
+
+// A chosen fence also shows its row of creatures (44 + 8) on phones
+const FENCE_PADDING_NARROW = { ...PADDING_NARROW, bottom: PADDING_NARROW.bottom + 52 };
+// The detail: a 360 px panel at 12 from the right edge on desktop
+const DETAIL_RIGHT = 396;
+// On phones a sheet up to 60 % tall, lifted over the attribution (two lines of 44)
+const SHEET_SHARE = 0.6;
+const ATTRIBUTION_HEIGHT = 88;
+
+function detailPadding(wide: boolean) {
+  if (wide) return { ...PADDING_WIDE, right: DETAIL_RIGHT };
+  return { ...PADDING_NARROW, bottom: Math.round(window.innerHeight * SHEET_SHARE) + ATTRIBUTION_HEIGHT };
+}
+
+function fencePadding(wide: boolean, detailOpen: boolean) {
+  if (detailOpen) return detailPadding(wide);
+  return wide ? PADDING_WIDE : FENCE_PADDING_NARROW;
+}
+
+// Hover or focus on a creature: fetch its detail and the panel's code before the tap
+function prepareCreature(id: number) {
+  preloadCreaturePanel();
+  prefetchCreature(id);
+}
+
+// Touch has no hover: once the map is up and the browser idle, the panel's code comes anyway
+function whenIdle(task: () => void): () => void {
+  if ("requestIdleCallback" in window) {
+    const handle = window.requestIdleCallback(task);
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = setTimeout(task, 1);
+  return () => clearTimeout(handle);
+}
 
 const WIDE_QUERY = "(min-width: 768px)";
 
@@ -88,10 +131,13 @@ function failure(): Phase {
   return navigator.onLine === false ? "offline" : "error";
 }
 
-// Sightings stream with the page; the map never waits for them (the catalog may be slow or down)
-export function MapStage({ sightings: pending }: { sightings?: Promise<readonly CompactSighting[]> }) {
-  const sightings = useResolved(pending);
+// Sightings stream with the page; the map never waits for them (the catalog may be slow or down).
+// null when the catalog failed
+export function MapStage({ sightings: pending }: { sightings?: Promise<SightingsPayload | null> }) {
+  const payload = useResolved(pending);
   const t = useTranslations("Map");
+  const tFences = useTranslations("Fences");
+  const tSweep = useTranslations("Sweep");
   const supported = useWebGL2Support();
   const wide = useWideViewport();
   const online = useOnline();
@@ -99,9 +145,29 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
   const regionRef = useRef<HTMLElement>(null);
   const [key, setKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("loading");
+  const { fence, detection, choose } = useFenceSweep(FENCES, payload);
+  // The creature open in the detail, as the URL says
+  const [focus, setFocus] = useState<number | null>(null);
+
+  const creatures = useMemo(
+    (): readonly SweepCreature[] =>
+      detection.status === "ready"
+        ? detection.traced.map(({ id, name, point }) => ({
+            id,
+            point,
+            label: tSweep("view", { name }),
+            sprite: spriteUrl(id),
+          }))
+        : [],
+    [detection, tSweep],
+  );
 
   const mounted = supported === true;
   const waiting = phase === "loading" || phase === "slow";
+
+  useEffect(() => {
+    if (phase === "ready") return whenIdle(preloadCreaturePanel);
+  }, [phase]);
 
   // Restarts with each mounted map (retry changes key) and stops once the map settles
   useEffect(() => {
@@ -139,6 +205,16 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
           ? "offline"
           : phase;
   const ready = visible === "ready";
+
+  const sweep: SweepProps = {
+    fence,
+    creatures,
+    focus,
+    fencePadding: () => fencePadding(wide, focus !== null),
+    detailPadding: () => detailPadding(wide),
+    onSelect: openCreature,
+    onIntent: prepareCreature,
+  };
 
   // Keyed per state so an alert is inserted fresh (and announced) instead of mutating the status node
   const notice =
@@ -178,7 +254,8 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
           <BaseMap
             key={key}
             ref={mapRef}
-            sightings={sightings}
+            sightings={payload?.sightings}
+            sweep={sweep}
             labels={{ region: t("region"), keyboardHelp: t("keyboardHelp") }}
             padding={wide ? PADDING_WIDE : PADDING_NARROW}
             onStatusChange={handleStatus}
@@ -186,6 +263,22 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
         ) : null}
       </section>
       {notice ? <div className="pointer-events-auto relative w-full max-w-md self-center">{notice}</div> : null}
+      {/* Above the controls on phones; a floating panel at the left on desktop. Usable without the map:
+          the list opens the detail even where WebGL is missing */}
+      <div className="pointer-events-auto relative flex w-full flex-col-reverse gap-3 rounded-panel border border-structure bg-surface p-2 md:absolute md:top-24 md:left-[max(0.75rem,env(safe-area-inset-left))] md:max-h-[calc(100dvh-12.5rem)] md:w-80 md:flex-col md:overflow-y-auto md:p-3">
+        <FencePicker
+          fences={FENCES.map(({ id }) => ({ id, name: tFences(id) }))}
+          active={fence?.id ?? null}
+          onChoose={choose}
+        />
+        <SweepReading
+          detection={detection}
+          fenceName={fence ? tFences(fence.id) : null}
+          onOpen={openCreature}
+          onIntent={prepareCreature}
+          onRetry={() => window.location.reload()}
+        />
+      </div>
       {/* Kept while support is unknown so hydration does not shift the column; gone once the map can never load */}
       {supported === false ? null : (
         // Legend left, controls right: the same order on screen and for the keyboard.
@@ -220,7 +313,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<readonly 
       {/* Its own boundary: reading the URL must not keep the map and its controls out of the prerender.
           Independent of the map's phase, so the detail shows even when the map cannot load */}
       <Suspense fallback={null}>
-        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} />
+        <CreatureRoute wide={wide} fallbackFocus={() => regionRef.current} onChange={setFocus} />
       </Suspense>
     </>
   );

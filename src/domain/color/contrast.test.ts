@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrastRatio } from "./contrast";
+import { composite, contrastRatio } from "./contrast";
 
 describe("contrastRatio", () => {
   it("is 21 between black and white and 1 between equal colors", () => {
@@ -18,5 +18,21 @@ describe("contrastRatio", () => {
   it("rejects anything other than #RRGGBB", () => {
     expect(() => contrastRatio("#FFF", "#000000")).toThrow(/#RRGGBB/);
     expect(() => contrastRatio("red", "#000000")).toThrow(/#RRGGBB/);
+  });
+});
+
+describe("composite", () => {
+  it("lays a color over another at an opacity, per sRGB channel", () => {
+    expect(composite("#ffffff", "#000000", 0.5)).toBe("#808080");
+    expect(composite("#3f6b3a", "#2a261e", 0.35)).toBe("#313e28");
+  });
+
+  it("returns the ground at 0 and the color at 1", () => {
+    expect(composite("#d9a55b", "#2a261e", 0)).toBe("#2a261e");
+    expect(composite("#d9a55b", "#2a261e", 1)).toBe("#d9a55b");
+  });
+
+  it("rejects an opacity outside 0–1", () => {
+    expect(() => composite("#ffffff", "#000000", 1.5)).toThrow(RangeError);
   });
 });

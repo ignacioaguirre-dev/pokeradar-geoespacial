@@ -58,4 +58,27 @@ describe("FENCES", () => {
       for (const vertex of fence.ring) expect(insideArgentina(vertex), `${vertex}`).toBe(true);
     });
   });
+
+  // The sea habitat spreads its 40 species over a huge shelf: a small fence there finds almost nothing
+  describe("sea", () => {
+    const sea = FENCES.find((f) => f.id === "sea")!;
+
+    it("is as big as the rule allows", () => {
+      expect(areaKm2(sea.ring)).toBeGreaterThanOrEqual(140_000);
+    });
+
+    // Vertices alone would let an edge cut across Península Valdés or past the shelf
+    it("lies entirely in the sea habitat: no land, no open ocean, clear of Malvinas", () => {
+      const { ring } = sea;
+      for (let i = 0; i < ring.length; i++) {
+        const [a, b] = [ring[i], ring[(i + 1) % ring.length]];
+        for (let step = 0; step <= 20; step++) {
+          const t = step / 20;
+          const point: LngLat = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+          expect(habitatsAt(point), `${point}`).toEqual(["sea"]);
+          expect(onArgentineLand(point), `${point}`).toBe(false);
+        }
+      }
+    });
+  });
 });

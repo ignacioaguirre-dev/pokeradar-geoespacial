@@ -20,14 +20,23 @@ function urlWith(id: number | null): URL {
   return url;
 }
 
-// A new entry, so the browser's back button closes the panel
+function pushedByPanel(): boolean {
+  const state: unknown = window.history.state;
+  return typeof state === "object" && state !== null && MARK in state;
+}
+
+// A new entry, so the browser's back button closes the panel. With the panel already open the entry is
+// swapped instead, keeping its mark: hopping between creatures never stacks entries to go back through
 export function openCreature(id: number): void {
+  if (new URL(window.location.href).searchParams.has(CREATURE_PARAM)) {
+    window.history.replaceState(pushedByPanel() ? { [MARK]: true } : null, "", urlWith(id));
+    return;
+  }
   window.history.pushState({ [MARK]: true }, "", urlWith(id));
 }
 
 export function closeCreature(): void {
-  const state: unknown = window.history.state;
-  if (typeof state === "object" && state !== null && MARK in state) {
+  if (pushedByPanel()) {
     window.history.back();
     return;
   }

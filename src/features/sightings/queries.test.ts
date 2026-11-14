@@ -101,8 +101,8 @@ describe("loadSightings", () => {
             23,
           ],
           "sea": [
+            12,
             7,
-            0,
           ],
           "yungas": [
             12,
