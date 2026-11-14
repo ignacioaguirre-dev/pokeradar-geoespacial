@@ -16,7 +16,8 @@ const pokeApiPort = port + 1;
 export default defineConfig({
   testDir: "e2e",
   forbidOnly: isCI,
-  retries: 0,
+  // Headless Firefox on the CI runner sometimes crashes mid-test (not an assertion); one retry reports it as flaky
+  retries: isCI ? 1 : 0,
   reporter: [["html", { open: "never" }], ["list"]],
   // CI never creates missing baselines, so a missing one fails the run
   updateSnapshots: isCI ? "none" : "missing",
