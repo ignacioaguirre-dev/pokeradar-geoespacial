@@ -104,33 +104,37 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
 
   return (
     <article className="flex flex-col gap-4">
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2
-            ref={titleRef}
-            tabIndex={-1}
-            className="font-display font-stretch-condensed text-headline font-extrabold uppercase break-words rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
-          >
-            {ready ? (
-              data.name
-            ) : (
-              <>
-                <span className="sr-only">{t("region")}</span>
-                {state === "loading" ? <span aria-hidden="true" className={`block h-lh w-40 ${SKELETON}`} /> : null}
-              </>
-            )}
-          </h2>
+      {/* The name gets the panel's full width: next to the button, longer names broke mid-word.
+          The heading stays first in reading order; only the row of number and Close is drawn above it */}
+      <header className="flex flex-col gap-1">
+        <h2
+          ref={titleRef}
+          tabIndex={-1}
+          className="order-last self-start font-display font-stretch-condensed text-headline font-extrabold uppercase wrap-break-word rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+        >
+          {ready ? (
+            data.name
+          ) : (
+            <>
+              <span className="sr-only">{t("region")}</span>
+              {state === "loading" ? <span aria-hidden="true" className={`block h-lh w-40 ${SKELETON}`} /> : null}
+            </>
+          )}
+        </h2>
+        <div className="flex items-center justify-between gap-3">
           {ready ? (
             <data value={data.id} className="font-mono text-body text-muted tabular-nums">
               #{String(data.id).padStart(3, "0")}
             </data>
           ) : state === "loading" ? (
             <span aria-hidden="true" className={`block h-lh w-12 text-body ${SKELETON}`} />
-          ) : null}
+          ) : (
+            <span />
+          )}
+          <Button variant="secondary" onClick={onClose}>
+            {t("close")}
+          </Button>
         </div>
-        <Button variant="secondary" onClick={onClose}>
-          {t("close")}
-        </Button>
       </header>
 
       {state === "error" ? (
@@ -189,14 +193,15 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
 
           {ready && data.flavor ? <p className="max-w-prose text-body">{data.flavor}</p> : null}
 
-          <section aria-labelledby={statsId} className="flex flex-col gap-3">
+          {/* A plain block, not a nested section: a region inside the panel region crashes Firefox under axe */}
+          <div className="flex flex-col gap-3">
             <h3
               id={statsId}
               className="font-display font-stretch-condensed text-label font-bold uppercase tracking-wider text-muted"
             >
               {t("stats")}
             </h3>
-            <ul className="flex flex-col gap-3">
+            <ul aria-labelledby={statsId} className="flex flex-col gap-3">
               {STATS.map((stat) => (
                 <li key={stat}>
                   {ready ? (
@@ -211,7 +216,7 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
                 </li>
               ))}
             </ul>
-          </section>
+          </div>
 
           {ready && data.cry ? <CryButton src={data.cry} /> : null}
         </>
