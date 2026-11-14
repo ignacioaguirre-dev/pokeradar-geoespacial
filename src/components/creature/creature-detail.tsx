@@ -122,7 +122,9 @@ export function CreatureDetail({ state, data, error, onRetry, onClose, titleRef 
 
       {state === "error" ? (
         error === "not-found" ? (
-          <Notice variant="error" title={t("notFoundTitle")} />
+          <Notice variant="error" title={t("notFoundTitle")} action={{ label: t("backToMap"), onActivate: onClose }}>
+            {t("notFoundBody")}
+          </Notice>
         ) : (
           <Notice variant="error" title={t("errorTitle")} action={{ label: t("retry"), onActivate: onRetry }}>
             {t("errorBody")}
