@@ -114,8 +114,6 @@ Cada unidad pasa por una revisión independiente y por una prueba manual en el n
   → Lo vio el autor al probar; conservan su caja y los controles entran recién cuando aterriza el vuelo.
 - La suite completa en los cinco perfiles, reservada para la release, nunca se había corrido y falló al primer intento.
   → La release corre la misma suite que cada PR; adaptar los tests por perfil quedó como deuda a la vista en el workflow.
-- Con el mapa quieto, pasar el mouse por un control dejaba rectángulos del mapa sin dibujar.
-  → Lo vio el autor al probar; el mapa ahora conserva su último cuadro.
 
 La IA aceleró el trabajo; la calidad salió de las revisiones independientes, de los tests que reproducen cada error y de las decisiones de producto tomadas por una persona.
 
