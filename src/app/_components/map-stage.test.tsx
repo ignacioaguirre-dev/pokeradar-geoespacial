@@ -1,6 +1,6 @@
 import { fireEvent } from "@testing-library/react";
 import { act, type Ref } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@/testing/render";
 import type { MapStatus } from "@/map/base-map";
 import { MapStage } from "./map-stage";
@@ -12,6 +12,8 @@ const fake = vi.hoisted(() => ({
   active: 0,
   onStatusChange: null as ((status: "ready" | "error") => void) | null,
   padding: null as { top: number; right: number; bottom: number; left: number } | null,
+  habitats: null as { features: { properties: { habitat: string } }[] } | null,
+  sightings: undefined as readonly (readonly [number, number, number])[] | undefined,
   handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {} },
   webgl2: true,
 }));
@@ -19,10 +21,14 @@ const fake = vi.hoisted(() => ({
 vi.mock("@/map/base-map", async () => {
   const { useEffect, useImperativeHandle } = await import("react");
   function BaseMap({
+    habitats,
+    sightings,
     padding,
     onStatusChange,
     ref,
   }: {
+    habitats: typeof fake.habitats;
+    sightings?: typeof fake.sightings;
     padding: Padding;
     onStatusChange(status: MapStatus): void;
     ref?: Ref<typeof fake.handle>;
@@ -30,6 +36,8 @@ vi.mock("@/map/base-map", async () => {
     useEffect(() => {
       fake.onStatusChange = onStatusChange;
       fake.padding = padding;
+      fake.habitats = habitats;
+      fake.sightings = sightings;
     });
     useEffect(() => {
       fake.mounts += 1;
@@ -92,12 +100,19 @@ function click(name: string) {
 }
 
 describe("MapStage", () => {
+  // The first import transforms the habitat GeoJSON on disk, slower than the microtask flush the tests rely on
+  beforeAll(async () => {
+    await import("./habitat-map");
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     fake.mounts = 0;
     fake.active = 0;
     fake.onStatusChange = null;
     fake.padding = null;
+    fake.habitats = null;
+    fake.sightings = undefined;
     fake.webgl2 = true;
     fake.handle = { zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn() };
     wide = false;
@@ -273,9 +288,40 @@ describe("MapStage", () => {
     expect(fake.handle.resetView).toHaveBeenCalledOnce();
   });
 
+  it("hands the generated habitats to the map", async () => {
+    await renderStage();
+    expect(fake.habitats?.features.map((f) => f.properties.habitat).sort()).toEqual(
+      ["forest", "grassland", "mountain", "rough-terrain", "sea", "waters-edge"],
+    );
+  });
+
+  it("hands the sightings to the map once they resolve", async () => {
+    render(<MapStage sightings={Promise.resolve([[25, -58.4, -34.6] as const])} />);
+    await flush();
+    expect(fake.sightings).toEqual([[25, -58.4, -34.6]]);
+  });
+
+  // Pending sightings (catalog slow or down) must not hold the map back
+  it("mounts the map while the sightings are still pending", async () => {
+    render(<MapStage sightings={new Promise(() => {})} />);
+    await flush();
+    expect(fake.mounts).toBe(1);
+    expect(fake.sightings).toBeUndefined();
+    report("ready");
+    expect(region()).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("the habitat legend waits for the map", async () => {
+    await renderStage();
+    const legend = screen.getByRole("button", { name: "Hábitats" });
+    expect(legend).toBeDisabled();
+    report("ready");
+    expect(legend).toBeEnabled();
+  });
+
   it("updates the map padding when the viewport widens", async () => {
     await renderStage();
-    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 152, left: 12 });
+    expect(fake.padding).toEqual({ top: 64, right: 12, bottom: 204, left: 12 });
     wide = true;
     act(() => mediaListeners.forEach((listener) => listener()));
     expect(fake.padding).toEqual({ top: 96, right: 120, bottom: 72, left: 120 });

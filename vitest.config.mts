@@ -1,8 +1,16 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { defineConfig, type Plugin } from "vitest/config";
+
+// Mirrors the Turbopack rule in next.config.ts: .geojson files load as JSON
+const geojson: Plugin = {
+  name: "geojson",
+  transform(code, id) {
+    if (id.endsWith(".geojson")) return { code: `export default ${code};`, map: null };
+  },
+};
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), geojson],
   resolve: {
     tsconfigPaths: true,
     // Next aliases next/dynamic to its App Router build; the default one wraps refs and swallows them

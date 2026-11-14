@@ -46,6 +46,8 @@ const nextConfig: NextConfig = {
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },
+      // Generated habitat data keeps its .geojson name but is plain JSON to the bundler
+      "*.geojson": { type: "json" },
     },
   },
 };

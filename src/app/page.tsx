@@ -1,6 +1,8 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { preconnect } from "react-dom";
+import { toCompact } from "@/domain/sightings/compact";
+import { loadSightings } from "@/features/sightings/queries";
 import { MapStage } from "./_components/map-stage";
 
 const ATTRIBUTION_LINK =
@@ -8,11 +10,17 @@ const ATTRIBUTION_LINK =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground";
 
 export default async function Home() {
+  // Started first so it overlaps the translations. Not awaited: a failed catalog is cached only briefly,
+  // so awaiting it here would make the build depend on PokéAPI. Handed over as a promise, the route stays
+  // prerendered and the dots stream in. On failure the layer stays empty; the data notice arrives with the sweep
+  const sightings = loadSightings().then((loaded) => (loaded.ok ? toCompact(loaded.data) : []));
   // MapLibre fetches the TileJSON with CORS, so only an anonymous connection gets reused
   preconnect("https://tiles.openfreemap.org", { crossOrigin: "anonymous" });
-  const t = await getTranslations("Home");
-  const tMap = await getTranslations("Map");
-  const messages = await getMessages();
+  const [t, tMap, messages] = await Promise.all([
+    getTranslations("Home"),
+    getTranslations("Map"),
+    getMessages(),
+  ]);
   return (
     // Bottom column: MapStage's notice and controls stack above the attribution; the map fills it absolutely
     <div className="relative flex h-dvh flex-col justify-end gap-2 overflow-hidden bg-map-sea pb-[env(safe-area-inset-bottom)]">
@@ -29,12 +37,14 @@ export default async function Home() {
           messages={{
             Map: messages.Map,
             Button: messages.Button,
+            Habitats: messages.Habitats,
             Creature: messages.Creature,
             Stats: messages.Stats,
             Types: messages.Types,
           }}
         >
-          <MapStage />
+          {/* loadSightings never rejects by design (failure is a value): no silent catch needed here */}
+          <MapStage sightings={sightings} />
         </NextIntlClientProvider>
       </main>
       <footer
@@ -53,6 +63,11 @@ export default async function Home() {
           {tMap("attributionData")}
           <a href="https://www.openstreetmap.org/copyright" className={ATTRIBUTION_LINK}>
             © OpenStreetMap
+          </a>
+          <span aria-hidden="true">·</span>
+          {/* Ecoregions; CC BY 4.0 asks for the source and the license */}
+          <a href="https://ecoregions.appspot.com" className={ATTRIBUTION_LINK}>
+            © RESOLVE (CC BY 4.0)
           </a>
         </p>
       </footer>

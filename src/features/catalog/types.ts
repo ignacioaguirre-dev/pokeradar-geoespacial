@@ -1,16 +1,8 @@
 // No zod here: client components import these without pulling the validator into the bundle.
+import { HABITATS, type Habitat } from "@/domain/habitat/types";
 
-export const HABITATS = [
-  "cave",
-  "forest",
-  "grassland",
-  "mountain",
-  "rare",
-  "rough-terrain",
-  "sea",
-  "urban",
-  "waters-edge",
-] as const;
+// The habitat list lives in domain, shared with the static data and the map.
+export { HABITATS, type Habitat };
 
 export const TYPE_NAMES = [
   "normal",
@@ -36,7 +28,6 @@ export const TYPE_NAMES = [
 // Only Gen I–III species have a habitat in PokéAPI.
 export const SPECIES_COUNT = 386;
 
-export type Habitat = (typeof HABITATS)[number];
 export type TypeName = (typeof TYPE_NAMES)[number];
 
 export type Species = { id: number; slug: string; habitat: Habitat; types: TypeName[] };

@@ -1,8 +1,19 @@
 import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
-import { ARGENTINA_OUTLINE } from "./argentina-outline";
+import { BIOME_OPACITY } from "@/domain/color/biome";
+import { ARGENTINA_OUTLINE } from "@/domain/geography/argentina-outline";
 import type { MapColors } from "./colors";
+import type { CompactSighting } from "@/domain/sightings/compact";
+import type { HabitatCollection } from "./habitats";
+import {
+  SIGHTING_MIN_ZOOM,
+  SIGHTING_OPACITY,
+  SIGHTING_RADIUS,
+  SIGHTINGS_SOURCE,
+  toSightingCollection,
+} from "./sightings";
 
 const SOURCE = "openmaptiles";
+const HABITATS = "habitats";
 const NAME: ExpressionSpecification = [
   "coalesce",
   ["get", "name:es"],
@@ -13,11 +24,33 @@ const NAME: ExpressionSpecification = [
 const IN_ARGENTINA: ExpressionSpecification = ["within", ARGENTINA_OUTLINE];
 const ON_LAND: ExpressionSpecification = ["!=", ["get", "maritime"], 1];
 
-export function buildStyle(colors: MapColors): StyleSpecification {
+function habitatColor({ biome, land }: MapColors): ExpressionSpecification {
+  return [
+    "match",
+    ["get", "habitat"],
+    "forest", biome.forest,
+    "grassland", biome.grassland,
+    "waters-edge", biome["waters-edge"],
+    "mountain", biome.mountain,
+    "rough-terrain", biome["rough-terrain"],
+    "sea", biome.sea,
+    land,
+  ];
+}
+
+export function buildStyle(
+  colors: MapColors,
+  habitats: HabitatCollection,
+  sightings: readonly CompactSighting[] = [],
+): StyleSpecification {
+  const habitatPaint = { "fill-color": habitatColor(colors), "fill-opacity": BIOME_OPACITY };
   return {
     version: 8,
     sources: {
       [SOURCE]: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
+      [HABITATS]: { type: "geojson", data: habitats },
+      // Always present, even empty: sightings that stream in later only need setData
+      [SIGHTINGS_SOURCE]: { type: "geojson", data: toSightingCollection(sightings) },
     },
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     layers: [
@@ -27,11 +60,27 @@ export function buildStyle(colors: MapColors): StyleSpecification {
         paint: { "background-color": colors.land },
       },
       {
+        // Under the water layer, so OSM lakes and rivers still cut through the ecoregions
+        id: "habitats",
+        type: "fill",
+        source: HABITATS,
+        filter: ["!=", ["get", "habitat"], "sea"],
+        paint: habitatPaint,
+      },
+      {
         id: "water",
         type: "fill",
         source: SOURCE,
         "source-layer": "water",
         paint: { "fill-color": colors.sea },
+      },
+      {
+        // The shelf sea tints the base ocean; the coastline still draws over it
+        id: "habitat-sea",
+        type: "fill",
+        source: HABITATS,
+        filter: ["==", ["get", "habitat"], "sea"],
+        paint: habitatPaint,
       },
       {
         id: "coastline",
@@ -69,6 +118,18 @@ export function buildStyle(colors: MapColors): StyleSpecification {
         "source-layer": "boundary",
         filter: ["all", ["==", ["get", "admin_level"], 2], ON_LAND],
         paint: { "line-color": colors.border, "line-width": 1.2 },
+      },
+      {
+        // Over the biomes and borders so the dots read, under the labels so names stay legible
+        id: SIGHTINGS_SOURCE,
+        type: "circle",
+        source: SIGHTINGS_SOURCE,
+        minzoom: SIGHTING_MIN_ZOOM,
+        paint: {
+          "circle-radius": SIGHTING_RADIUS,
+          "circle-color": colors.sighting,
+          "circle-opacity": SIGHTING_OPACITY,
+        },
       },
       {
         id: "water-name",

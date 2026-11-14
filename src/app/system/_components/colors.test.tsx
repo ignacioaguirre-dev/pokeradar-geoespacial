@@ -15,4 +15,14 @@ describe("Colors", () => {
     expect(within(rowOf("energy")).getByText("Gráfico · mín. 3")).toBeInTheDocument();
     expect(within(rowOf("structure")).getByText("Decorativo")).toBeInTheDocument();
   });
+
+  it("lists the biome colors of the map with their origin", () => {
+    render(<Colors />);
+    const forest = within(rowOf("biome-forest"));
+    expect(forest.getByText("Selva de las yungas salteñas")).toBeInTheDocument();
+    expect(forest.getByText("Decorativo")).toBeInTheDocument();
+    for (const name of ["grassland", "waters-edge", "mountain", "rough-terrain", "sea"]) {
+      expect(rowOf(`biome-${name}`)).toBeInTheDocument();
+    }
+  });
 });
