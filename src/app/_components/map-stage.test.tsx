@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { render, screen, within } from "@/testing/render";
 import type { MapInput, MapStatus } from "@/map/base-map";
 import { createMapHelpStore, MAP_HELP_SEEN_KEY, type MapHelpStore } from "@/features/map-help/storage";
+import { introPlayed } from "./intro-played";
 import { MapStage } from "./map-stage";
 
 type Padding = { top: number; right: number; bottom: number; left: number };
@@ -17,16 +18,24 @@ const fake = vi.hoisted(() => ({
   padding: null as { top: number; right: number; bottom: number; left: number } | null,
   habitats: null as { features: { properties: { habitat: string } }[] } | null,
   sightings: undefined as readonly (readonly [number, number, number])[] | undefined,
-  handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {} },
+  intro: undefined as boolean | undefined,
+  // The latest intro prop, while `intro` keeps the one the map was created with
+  introNow: undefined as boolean | undefined,
+  onIntroEnd: undefined as (() => void) | undefined,
+  handle: { zoomIn: () => {}, zoomOut: () => {}, resetView: () => {}, skipIntro: () => {}, focus: () => {} },
   webgl2: true,
+  // While pending, the map suspends as if its chunk were still downloading
+  chunk: null as Promise<void> | null,
 }));
 
 vi.mock("@/map/base-map", async () => {
-  const { useEffect, useImperativeHandle } = await import("react");
+  const { use, useEffect, useImperativeHandle, useState } = await import("react");
   function BaseMap({
     habitats,
     sightings,
     padding,
+    intro,
+    onIntroEnd,
     onStatusChange,
     onInputDetected,
     onInteract,
@@ -35,11 +44,14 @@ vi.mock("@/map/base-map", async () => {
     habitats: typeof fake.habitats;
     sightings?: typeof fake.sightings;
     padding: Padding;
+    intro?: boolean;
+    onIntroEnd?(): void;
     onStatusChange(status: MapStatus): void;
     onInputDetected?(input: MapInput): void;
     onInteract?(): void;
     ref?: Ref<typeof fake.handle>;
   }) {
+    if (fake.chunk) use(fake.chunk);
     useEffect(() => {
       fake.onStatusChange = onStatusChange;
       fake.onInputDetected = onInputDetected ?? null;
@@ -47,7 +59,14 @@ vi.mock("@/map/base-map", async () => {
       fake.padding = padding;
       fake.habitats = habitats;
       fake.sightings = sightings;
+      fake.onIntroEnd = onIntroEnd;
+      fake.introNow = intro;
     });
+    // BaseMap reads intro only when it creates the map
+    const [firstIntro] = useState(intro);
+    useEffect(() => {
+      fake.intro = firstIntro;
+    }, [firstIntro]);
     useEffect(() => {
       fake.mounts += 1;
       fake.active += 1;
@@ -85,16 +104,18 @@ vi.mock("./creature-route", () => ({
 }));
 
 const WIDE = "(min-width: 768px)";
+const REDUCED = "(prefers-reduced-motion: reduce)";
 let wide = false;
-// Media queries that match besides WIDE (pointer and hover)
+// Media queries that match besides WIDE and REDUCED (pointer and hover)
 let matching = new Set<string>();
+let reduced = true;
 const mediaListeners = new Set<() => void>();
 
 function installMatchMedia() {
   window.matchMedia = (query: string) =>
     ({
       get matches() {
-        return query === WIDE ? wide : matching.has(query);
+        return query === WIDE ? wide : query === REDUCED ? reduced : matching.has(query);
       },
       media: query,
       addEventListener: (_: string, listener: () => void) => mediaListeners.add(listener),
@@ -144,11 +165,18 @@ describe("MapStage", () => {
     fake.habitats = null;
     fake.sightings = undefined;
     fake.webgl2 = true;
-    fake.handle = { zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn() };
+    fake.chunk = null;
+    fake.intro = undefined;
+    fake.introNow = undefined;
+    introPlayed.current = false;
+    fake.onIntroEnd = undefined;
+    fake.handle = { zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn(), skipIntro: vi.fn(), focus: vi.fn() };
     wide = false;
     matching = new Set(["(pointer: fine) and (hover: hover)"]);
     localStorage.clear();
     helpStore.current = createMapHelpStore();
+    // Most states are about loading, not the flight
+    reduced = true;
     mediaListeners.clear();
     installMatchMedia();
   });
@@ -511,6 +539,169 @@ describe("MapStage", () => {
         KEYBOARD,
         TOUCH,
       ]);
+    });
+  });
+
+
+  describe("entry flight", () => {
+    const SKIP = "Saltar el vuelo de entrada";
+
+    function endFlight() {
+      act(() => fake.onIntroEnd?.());
+    }
+
+    beforeEach(() => {
+      reduced = false;
+    });
+
+    it("flies in on the first load and offers to skip it", async () => {
+      await renderStage();
+      expect(fake.intro).toBe(true);
+      const skip = screen.getByRole("button", { name: SKIP });
+      expect(skip).toHaveTextContent("Saltar");
+    });
+
+    it("keeps the controls disabled while flying, even once ready", async () => {
+      await renderStage();
+      report("ready");
+      expect(region()).toHaveAttribute("aria-busy", "false");
+      for (const name of ["Acercar", "Alejar", "Ver Argentina", "Hábitats"]) {
+        expect(screen.getByRole("button", { name })).toBeDisabled();
+      }
+      endFlight();
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      for (const name of ["Acercar", "Alejar", "Ver Argentina", "Hábitats"]) {
+        expect(screen.getByRole("button", { name })).toBeEnabled();
+      }
+    });
+
+    it("skip ends the flight and hands focus to the map", async () => {
+      fake.handle.skipIntro = vi.fn(() => fake.onIntroEnd?.());
+      await renderStage();
+      report("ready");
+      act(() => click(SKIP));
+      expect(fake.handle.skipIntro).toHaveBeenCalledOnce();
+      expect(fake.handle.focus).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    it("skip before the map mounts creates it without a flight", async () => {
+      let arrive = () => {};
+      fake.chunk = new Promise((resolve) => {
+        arrive = resolve;
+      });
+      await renderStage();
+      expect(fake.active).toBe(0);
+      act(() => click(SKIP));
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      expect(region()).toHaveFocus();
+      fake.chunk = null;
+      arrive();
+      await flush();
+      expect(fake.active).toBe(1);
+      expect(fake.intro).toBe(false);
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    it("flies once per page load, even if the stage remounts", async () => {
+      const { unmount } = render(<MapStage />);
+      await flush();
+      report("ready");
+      endFlight();
+      unmount();
+      await renderStage();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+    });
+
+    it("moves focus from skip to the map when the flight ends by itself", async () => {
+      await renderStage();
+      report("ready");
+      act(() => screen.getByRole("button", { name: SKIP }).focus());
+      endFlight();
+      expect(fake.handle.focus).toHaveBeenCalledOnce();
+    });
+
+    it("leaves focus alone when the flight ends elsewhere", async () => {
+      await renderStage();
+      report("ready");
+      endFlight();
+      expect(fake.handle.focus).not.toHaveBeenCalled();
+    });
+
+    it("tells the map the flight is over, so it drops the space background", async () => {
+      await renderStage();
+      expect(fake.introNow).toBe(true);
+      report("ready");
+      endFlight();
+      expect(fake.introNow).toBe(false);
+    });
+
+    it("does not fly under a creature opened from a shared link", async () => {
+      window.history.replaceState(null, "", "/?creature=25");
+      try {
+        await renderStage();
+      } finally {
+        window.history.replaceState(null, "", "/");
+      }
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+    });
+
+    it("still flies when the creature in the link is not a valid id", async () => {
+      window.history.replaceState(null, "", "/?creature=pikachu");
+      try {
+        await renderStage();
+      } finally {
+        window.history.replaceState(null, "", "/");
+      }
+      expect(fake.intro).toBe(true);
+    });
+
+    it("does not fly with reduced motion", async () => {
+      reduced = true;
+      await renderStage();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    it("hides skip on error and does not fly again after retry", async () => {
+      await renderStage();
+      report("error");
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      click("Reintentar");
+      await flush();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
+    });
+
+    // It explains how to move a map that cannot move yet, and would sit under the skip button's focus
+    it("holds the movement help until the flight ends", async () => {
+      await renderStage();
+      report("ready");
+      expect(screen.queryByRole("button", { name: "Entendido" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cómo moverse" })).toBeDisabled();
+      endFlight();
+      expect(screen.getByRole("button", { name: "Entendido" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cómo moverse" })).toBeEnabled();
+      expect(localStorage.getItem(MAP_HELP_SEEN_KEY)).toBeNull();
+    });
+
+    it("shows the movement help once the flight is skipped, without taking the focus from the map", async () => {
+      fake.handle.skipIntro = vi.fn(() => fake.onIntroEnd?.());
+      await renderStage();
+      report("ready");
+      act(() => click(SKIP));
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Entendido" })).toBeInTheDocument();
+      expect(fake.handle.focus).toHaveBeenCalledOnce();
+      expect(screen.getByRole("button", { name: "Entendido" })).not.toHaveFocus();
     });
   });
 });
