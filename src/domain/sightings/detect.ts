@@ -18,6 +18,10 @@ function distanceSquared([lng, lat]: LngLat, [cx, cy]: LngLat, lngScale: number)
   return dx * dx + dy * dy;
 }
 
+// Breaks a distance tie by coordinates, so the winner never depends on the input order
+const westSouthFirst = ([lng, lat]: LngLat, [otherLng, otherLat]: LngLat) =>
+  lng < otherLng || (lng === otherLng && lat < otherLat);
+
 export function detect(fence: Fence, sightings: readonly Sighting[], limit = TRACED_LIMIT): Detection {
   const { ring } = fence;
   if (ring.length < 3) return { traced: [], weakSignals: 0 };
@@ -34,7 +38,11 @@ export function detect(fence: Fence, sightings: readonly Sighting[], limit = TRA
     if (!pointInRing(sighting.point, ring)) continue;
     const distance = distanceSquared(sighting.point, center, lngScale);
     const current = nearest.get(sighting.speciesId);
-    if (!current || distance < current.distance) nearest.set(sighting.speciesId, { sighting, distance });
+    const wins =
+      !current ||
+      distance < current.distance ||
+      (distance === current.distance && westSouthFirst(sighting.point, current.sighting.point));
+    if (wins) nearest.set(sighting.speciesId, { sighting, distance });
   }
 
   const ordered = [...nearest.values()]

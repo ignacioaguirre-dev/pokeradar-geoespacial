@@ -60,6 +60,19 @@ describe("detect", () => {
     expect(detect(FENCE, sightings).traced.map((s) => s.speciesId)).toEqual([12, 2, 9, 30, 4]);
   });
 
+  test("two points of a species at the same distance: the same one wins whatever the input order", () => {
+    const west = at(3, -0.5, 0);
+    const east = at(3, 0.5, 0);
+    const south = at(3, 0, -0.5);
+    const orders = [
+      [west, east, south],
+      [east, south, west],
+      [south, west, east],
+    ];
+    // Lower longitude first, then lower latitude
+    for (const sightings of orders) expect(detect(FENCE, sightings).traced).toEqual([west]);
+  });
+
   test("a point on the edge counts as inside", () => {
     expect(detect(FENCE, [at(5, 1, 0), at(6, -1, -1)]).traced.map((s) => s.speciesId)).toEqual([5, 6]);
   });
