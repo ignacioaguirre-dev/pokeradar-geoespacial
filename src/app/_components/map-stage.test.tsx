@@ -474,6 +474,17 @@ describe("MapStage", () => {
       expect(fake.sweep!.detailPadding()).toEqual({ top: 96, right: 396, bottom: 72, left: 352 });
     });
 
+    // The sheet rests on the controls and the attribution and stops 160 px from the top: the creature lands above it
+    it("on phones the detail leaves the creature above the sheet", async () => {
+      window.innerHeight = 844;
+      render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
+      await flush();
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 12, bottom: 684, left: 12 });
+      window.innerHeight = 740;
+      expect(fake.sweep!.detailPadding()).toEqual({ top: 64, right: 12, bottom: 580, left: 12 });
+      window.innerHeight = 768;
+    });
+
     // The panel grows with the reading (three lines on a phone): a fixed guess would leave creatures under it
     it("on phones frames the fence above the sweep panel as tall as it really is", async () => {
       render(<MapStage sightings={Promise.resolve(PAYLOAD)} />);
@@ -576,6 +587,14 @@ describe("MapStage", () => {
       expect(intro()).toBeNull();
       report("ready");
       expect(intro()).not.toBeNull();
+    });
+
+    // On desktop the intro sits beside the sweep panel, where the creatures of a fence land
+    it("closes when a fence is chosen, like any first interaction", async () => {
+      await readyStage();
+      click("Esteros del Iberá");
+      expect(intro()).toBeNull();
+      expect(localStorage.getItem(SEEN_KEY)).not.toBeNull();
     });
 
     // Fences, then what they found, then the help and the map controls: the order on screen on a phone

@@ -18,9 +18,12 @@ type Props = {
 };
 
 // Not modal: the map stays usable around it. A bottom sheet up to 60 % tall on phones, a floating panel on desktop.
-// On phones it rests on the map attribution (two lines of 44 px there) instead of covering it: it must stay visible
+// On phones it rests on the legend row and the map controls (two rows of 44 px), which rest on the attribution
+// (two lines of 44 px), 8 px apart: the controls stay in reach and the attribution visible. It never climbs higher
+// than 10rem from the top, so the creature it is about keeps some map above it
 const PANEL =
-  "pointer-events-auto fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 flex max-h-[60dvh] " +
+  "pointer-events-auto fixed inset-x-0 bottom-[calc(12.5rem+env(safe-area-inset-bottom))] z-20 flex " +
+  "max-h-[min(60dvh,calc(100dvh-22.5rem-env(safe-area-inset-bottom)))] " +
   "flex-col overflow-y-auto overscroll-contain rounded-t-panel border-t border-structure bg-surface p-4 " +
   "md:inset-x-auto md:top-3 md:right-[max(0.75rem,env(safe-area-inset-right))] md:bottom-auto md:w-[360px] " +
   "md:max-h-[calc(100dvh-10rem)] md:rounded-panel md:border md:pb-4";

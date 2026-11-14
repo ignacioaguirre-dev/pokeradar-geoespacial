@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Locator, test, type Page } from "@playwright/test";
 import messages from "../messages/es-AR.json";
 import {
   expectNoA11yViolations,
@@ -43,6 +43,30 @@ function markersSettled(page: Page): Promise<boolean> {
       bodies.every((body) => body.getAnimations().every((a) => a.playState === "finished"))
     );
   });
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+
+function overlap(a: Box, b: Box): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+// Every pair of the named parts, measured where they are now; touching edges do not count
+async function expectApart(parts: Record<string, Locator>): Promise<void> {
+  const boxes = await Promise.all(
+    Object.entries(parts).map(async ([name, locator]) => {
+      const box = await locator.boundingBox();
+      expect(box, `${name} is not on screen`).not.toBeNull();
+      return [name, box!] as const;
+    }),
+  );
+  for (const [i, [name, box]] of boxes.entries()) {
+    for (const [other, otherBox] of boxes.slice(i + 1)) {
+      expect(overlap(box, otherBox), `${name} ${JSON.stringify(box)} overlaps ${other} ${JSON.stringify(otherBox)}`).toBe(
+        false,
+      );
+    }
+  }
 }
 
 async function choose(page: Page, fence: string) {
@@ -214,6 +238,59 @@ test.describe("with WebGL2", () => {
     const [sheetBox, osmBox] = [await sheet.boundingBox(), await osm.boundingBox()];
     expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(osmBox!.y + 1);
   });
+
+  // The sweep panel, the movement help (intro and panel), the legend row and the map controls share the bottom of
+  // a phone and the left of a desktop; the detail sheet joins them once a creature opens
+  for (const [width, height] of [
+    [360, 740],
+    [390, 844],
+    [1280, 720],
+  ] as const) {
+    test(`at ${width} px the sweep panel, the movement help, the controls and the detail never overlap`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/");
+      await waitForMapReady(page);
+      const panel = page.getByRole("group", { name: t.fences }).locator("..");
+      const controls = {
+        legend: page.getByRole("button", { name: messages.Map.legend }),
+        help: page.getByRole("button", { name: messages.MapHelp.title }),
+        nav: page.getByRole("navigation", { name: messages.Map.controls }),
+      };
+      const intro = page.getByRole("status").filter({ has: page.getByRole("button", { name: messages.MapHelp.dismiss }) });
+
+      // First visit: the intro opens above the sweep panel on phones, beside it on desktop
+      await expect(intro).toBeVisible();
+      await expectApart({ panel, intro, ...controls });
+
+      await page.getByRole("button", { name: messages.MapHelp.dismiss }).click();
+      await choose(page, IBERA);
+      await expect(list(page, IBERA)).toHaveCount(12);
+      await expect(reading(page)).toHaveText(IBERA_READING);
+      await expectApart({ panel, ...controls });
+
+      // The panel never covers the reading and never runs off the top, however tall the sweep panel got
+      await controls.help.click();
+      const helpPanel = page.getByRole("region", { name: messages.MapHelp.title });
+      await expect(helpPanel).toBeVisible();
+      await expectApart({ panel, helpPanel, ...controls });
+      expect((await helpPanel.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+      await page.keyboard.press("Escape");
+      await expect(helpPanel).toBeHidden();
+
+      // On phones the sheet covers the sweep panel but rests on the controls; on desktop it floats at the right
+      await list(page, IBERA).first().click();
+      const sheet = page.getByRole("region", { name: /./ }).filter({ has: page.getByRole("heading", { level: 2 }) });
+      await expect(sheet).toBeVisible({ timeout: 15_000 });
+      // Measured where it rests, not mid-entrance
+      await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+      await expectApart(width >= 768 ? { panel, sheet, ...controls } : { sheet, ...controls });
+      // A short phone still keeps some map above the sheet for the creature it is about
+      if (width < 768) expect((await sheet.boundingBox())!.y).toBeGreaterThanOrEqual(159);
+      await expectApart({ panel, ...controls });
+    });
+  }
 
   for (const [width, height] of [
     [390, 844],

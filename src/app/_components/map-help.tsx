@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { type KeyboardEvent, type Ref, useId, useImperativeHandle, useRef, useState } from "react";
+import { type KeyboardEvent, type Ref, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import type { PointerKind } from "@/hooks/use-pointer-kind";
@@ -44,6 +44,9 @@ export function MapHelpIntro({ lines, onDismiss }: { lines: readonly HelpLine[];
   );
 }
 
+// Room kept above the panel for the brand, so a tall panel scrolls instead of running off the top
+const TOP_CLEARANCE_PX = 64;
+
 export type MapHelpButtonHandle = {
   focus(): void;
   // Closes the panel without moving the focus: the person is already busy with the map
@@ -54,16 +57,19 @@ type MapHelpButtonProps = {
   // Read when the panel opens, so what the map detects mid-gesture does not re-render anything
   lines(): readonly HelpLine[];
   disabled?: boolean;
+  // Where the panel opens along the row, for what else floats at its left edge
+  panelClassName?: string;
   ref?: Ref<MapHelpButtonHandle>;
 };
 
-export function MapHelpButton({ lines, disabled = false, ref }: MapHelpButtonProps) {
+export function MapHelpButton({ lines, disabled = false, panelClassName = "left-0", ref }: MapHelpButtonProps) {
   const t = useTranslations("MapHelp");
   // The lines shown while open; null while closed
   const [shown, setShown] = useState<readonly HelpLine[] | null>(null);
   const open = shown !== null;
   // Button does not forward refs, so the trigger is reached through a wrapper of its own
   const triggerRef = useRef<HTMLSpanElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const panelId = useId();
   const headingId = useId();
   // Reset while rendering, so the help does not pop open again by itself once re-enabled
@@ -74,6 +80,16 @@ export function MapHelpButton({ lines, disabled = false, ref }: MapHelpButtonPro
   }
 
   useImperativeHandle(ref, () => ({ focus: focusTrigger, close: () => setShown(null) }), []);
+
+  // On a phone it opens above the whole sweep panel, which may leave less room than the lines need
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    panel.style.maxHeight = "";
+    const { bottom, height } = panel.getBoundingClientRect();
+    const room = bottom - TOP_CLEARANCE_PX;
+    if (height > room) panel.style.maxHeight = `${Math.max(room, 0)}px`;
+  }, [shown]);
 
   function close() {
     setShown(null);
@@ -86,7 +102,7 @@ export function MapHelpButton({ lines, disabled = false, ref }: MapHelpButtonPro
   }
 
   return (
-    // Not positioned: the panel anchors to the whole controls row, so it never runs off a narrow screen
+    // Not positioned: the panel anchors to what holds the controls row, so it never runs off a narrow screen
     <div className="pointer-events-auto" onKeyDown={handleKeyDown}>
       <span ref={triggerRef} className="contents">
         <Button
@@ -104,9 +120,10 @@ export function MapHelpButton({ lines, disabled = false, ref }: MapHelpButtonPro
           narrow enough (24rem) to stay clear of the creature detail on desktop */}
       {shown ? (
         <section
+          ref={panelRef}
           id={panelId}
           aria-labelledby={headingId}
-          className="absolute bottom-full left-0 mb-2 flex w-max max-w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3 rounded-panel border border-structure bg-surface p-3 text-body text-foreground"
+          className={`absolute bottom-full mb-2 flex overflow-y-auto ${panelClassName} w-max max-w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3 rounded-panel border border-structure bg-surface p-3 text-body text-foreground`}
         >
           <h2 id={headingId} className="font-semibold">
             {t("title")}

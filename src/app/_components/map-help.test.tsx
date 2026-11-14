@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { act } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@/testing/render";
 import { introLines, MapHelpButton, type MapHelpButtonHandle, MapHelpIntro, panelLines } from "./map-help";
 
@@ -55,6 +55,10 @@ describe("MapHelpButton", () => {
   function panel() {
     return screen.queryByRole("region", { name: "Cómo moverse" });
   }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("opens the help with the lines in the given order", async () => {
     render(<MapHelpButton lines={lines} />);
@@ -132,5 +136,24 @@ describe("MapHelpButton", () => {
     render(<MapHelpButton lines={lines} disabled />);
     expect(screen.getByRole("button", { name: "Cómo moverse" })).toBeDisabled();
     expect(panel()).not.toBeInTheDocument();
+  });
+
+  // On a phone it opens above the sweep panel: with a fence chosen, a 360 x 740 screen leaves it less room
+  it("scrolls instead of running off the top when the room above is short", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      DOMRect.fromRect({ x: 12, y: -3, width: 336, height: 309 }),
+    );
+    render(<MapHelpButton lines={lines} />);
+    await userEvent.click(screen.getByRole("button", { name: "Cómo moverse" }));
+    expect(panel()).toHaveStyle({ maxHeight: "242px" });
+  });
+
+  it("keeps its natural height when it fits", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      DOMRect.fromRect({ x: 12, y: 300, width: 336, height: 309 }),
+    );
+    render(<MapHelpButton lines={lines} />);
+    await userEvent.click(screen.getByRole("button", { name: "Cómo moverse" }));
+    expect(panel()?.style.maxHeight).toBe("");
   });
 });
