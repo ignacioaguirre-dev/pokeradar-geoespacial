@@ -466,7 +466,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
         ) : null}
       </section>
       {notice ? (
-        <div ref={noticeRef} className="pointer-events-auto relative w-full max-w-md self-center">
+        <div ref={noticeRef} className="enter-in pointer-events-auto relative w-full max-w-md self-center">
           {notice}
         </div>
       ) : null}
@@ -479,7 +479,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
         <div
           ref={sweepPanelRef}
           onClickCapture={dismissHelp}
-          className="pointer-events-auto relative flex w-full flex-col gap-3 rounded-panel border border-structure bg-surface p-2 md:absolute md:top-24 md:left-[max(0.75rem,env(safe-area-inset-left))] md:max-h-[calc(100dvh-12.5rem)] md:w-80 md:overflow-y-auto md:p-3">
+          className="enter-in pointer-events-auto relative flex w-full flex-col gap-3 rounded-panel border border-structure bg-surface p-2 md:absolute md:top-24 md:left-[max(0.75rem,env(safe-area-inset-left))] md:max-h-[calc(100dvh-12.5rem)] md:w-80 md:overflow-y-auto md:p-3">
           {drawing ? (
             <FenceDrawing
               ref={drawingRef}
@@ -521,7 +521,7 @@ export function MapStage({ sightings: pending }: { sightings?: Promise<Sightings
             {/* Floats above the controls instead of joining the column, which would grow upward as a layout shift */}
             {showHelp && wide ? (
               // Left, by the help button: the right side belongs to the creature detail
-              <div className={`pointer-events-auto absolute bottom-full mb-2 w-full max-w-sm ${HELP_LEFT} ${INTRO_WIDE}`}>
+              <div className={`enter-in pointer-events-auto absolute bottom-full mb-2 w-full max-w-sm ${HELP_LEFT} ${INTRO_WIDE}`}>
                 <MapHelpIntro lines={introLines(pointer)} onDismiss={acknowledgeHelp} />
               </div>
             ) : null}
