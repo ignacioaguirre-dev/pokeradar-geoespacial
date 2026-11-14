@@ -69,6 +69,39 @@ describe("useCreature", () => {
     expect(result.current.error).toBe("unavailable");
   });
 
+  it("asks again on its own when the connection comes back after a network failure", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch")).mockResolvedValueOnce(json(detail(12)));
+    const { result } = renderHook(() => useCreature(12));
+    await waitFor(() => expect(result.current.error).toBe("unavailable"));
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(result.current.state).toBe("loading");
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    expect(result.current.data).toEqual(detail(12));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not repeat a request already in flight when the connection comes back", () => {
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+    renderHook(() => useCreature(13));
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask again for a creature that does not exist", async () => {
+    fetchMock.mockResolvedValue(json({ error: "not-found" }, 404));
+    const { result } = renderHook(() => useCreature(14));
+    await waitFor(() => expect(result.current.error).toBe("not-found"));
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(result.current.state).toBe("error");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["a missing stat", { ...detail(5), stats: { hp: 1 } }],
     ["an unknown type", { ...detail(5), types: ["laser"] }],

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, Chivo, Chivo_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { ConnectionStatus } from "@/components/connection-status/connection-status";
 import "./globals.css";
 
 // Width axis gives the condensed display cut without a second family
@@ -45,7 +46,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
         {/* Only namespaces read by shared client primitives ship to the browser; pages add their own */}
-        <NextIntlClientProvider messages={{ Button: messages.Button }}>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider messages={{ Button: messages.Button, Connection: messages.Connection }}>
+          {children}
+          {/* Once for every page, outside the pages' own providers, so it reads the layout's messages */}
+          <ConnectionStatus />
+        </NextIntlClientProvider>
       </body>
     </html>
   );
