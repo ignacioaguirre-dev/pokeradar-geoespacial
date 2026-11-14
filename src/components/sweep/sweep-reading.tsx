@@ -56,12 +56,16 @@ export function SweepReading({ detection, fenceName, onOpen, onIntent, onRetry }
         role={detection.status === "idle" ? undefined : "status"}
         className={`text-body ${detection.status === "idle" ? "text-muted" : "text-foreground"}`}
       >
-        {reading}
+        {/* Keyed, so each new reading fades in; the live region around it stays the same node */}
+        <span key={`${detection.status}-${fence ?? ""}`} className="enter-in [--control-in-y:0]">
+          {reading}
+        </span>
       </p>
       {traced.length > 0 ? (
         <ul
+          key={fence}
           aria-label={t("list", { fence })}
-          className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0"
+          className="enter-in -mx-1 flex gap-2 [--control-in-y:0] overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0"
         >
           {traced.map(({ id, name }) => (
             <li key={id} className="shrink-0 md:*:w-full">

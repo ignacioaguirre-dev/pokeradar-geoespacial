@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { CreatureDetail } from "@/components/creature/creature-detail";
 import { CURVE_OUT } from "@/components/ui/motion-tokens";
+import { spriteUrl } from "@/features/catalog/sprite";
 import { useCreature } from "@/features/creature/use-creature";
 import { useDurationToken } from "@/hooks/use-duration-token";
 import { PANEL } from "./detail-panel-shell";
@@ -97,6 +98,7 @@ export function DetailPanel({ id, wide, onClose, fallbackFocus }: Props) {
               onRetry={creature.retry}
               onClose={close}
               titleRef={titleRef}
+              placeholderSprite={id === null ? undefined : spriteUrl(id)}
             />
           </m.section>
         ) : null}

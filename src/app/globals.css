@@ -121,7 +121,8 @@
 
 /* MapLibre's container clips overflow, so the default ring around the canvas is cut off; inset keeps it inside */
 @layer components {
-  .controls-in > * {
+  .controls-in > *,
+  .enter-in {
     animation: control-in calc(var(--duration-medium) * 2) var(--curve-out) both;
   }
   .controls-in > :nth-child(2) {

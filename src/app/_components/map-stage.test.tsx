@@ -985,12 +985,13 @@ describe("MapStage", () => {
       expect(screen.getByRole("button", { name: "Esteros del Iberá" })).toBeEnabled();
     });
 
-    it("keeps the controls disabled while flying, even once ready", async () => {
+    // Only the map during the flight: controls shown switched off would change look in a second step on landing
+    it("brings the controls in once the flight lands, ready to use", async () => {
       await renderStage();
       report("ready");
       expect(region()).toHaveAttribute("aria-busy", "false");
       for (const name of ["Acercar", "Alejar", "Ver Argentina", "Hábitats"]) {
-        expect(screen.getByRole("button", { name })).toBeDisabled();
+        expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
       }
       endFlight();
       expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
@@ -1153,7 +1154,7 @@ describe("MapStage", () => {
       await renderStage();
       report("ready");
       expect(screen.queryByRole("button", { name: "Entendido" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Cómo moverse" })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Cómo moverse" })).not.toBeInTheDocument();
       endFlight();
       expect(screen.getByRole("button", { name: "Entendido" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Cómo moverse" })).toBeEnabled();

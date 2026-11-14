@@ -286,7 +286,8 @@ test.describe("with WebGL2", () => {
       await page.goto("/");
       await expect(skipButton(page)).toBeVisible();
       await expect(regionBusy(page)).toHaveAttribute("aria-busy", "false", { timeout: 30_000 });
-      await expect(page.getByRole("button", { name: t.zoomIn })).toBeDisabled();
+      // Only the map while it flies: the controls come in on landing
+      await expect(page.getByRole("button", { name: t.zoomIn })).toHaveCount(0);
     }
 
     test("a load with the flight hydrates without errors", async ({ page }) => {
@@ -381,7 +382,7 @@ test.describe("with WebGL2", () => {
     test("the movement help waits for the flight to end by itself", async ({ page }) => {
       await startFlight(page);
       await expect(helpIntro(page)).toHaveCount(0);
-      await expect(page.getByRole("button", { name: help.title })).toBeDisabled();
+      await expect(page.getByRole("button", { name: help.title })).toHaveCount(0);
       await expect(skipButton(page)).toBeHidden({ timeout: 15_000 });
       await expect(helpIntro(page)).toBeVisible();
       await expect(page.getByRole("button", { name: help.title })).toBeEnabled();

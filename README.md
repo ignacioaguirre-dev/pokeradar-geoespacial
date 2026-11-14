@@ -18,6 +18,7 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 - **La ubicación no es arbitraria:** el territorio está teñido por hábitat y la leyenda dice cuál es cuál. El reparto es determinista: cada criatura está en el mismo lugar para todos.
 - **Descubrir no es esperar:** el mapa no depende del catálogo (si PokéAPI falla, se sigue usando), el vuelo se corta en cualquier momento y los puntos aparecen apenas llegan.
 - **Primero el celular:** mapa a pantalla completa; los controles (acercar, alejar, ver Argentina, ayuda y hábitats) van en una columna flotante a la derecha, y la ayuda y la leyenda suben en una hoja desde abajo. El detalle es otra hoja inferior que no tapa el mapa (en escritorio, panel flotante). Todo con botones de 44 px y una ayuda con los gestos del dispositivo que se está usando.
+- **Animaciones con propósito:** los anillos y las trazas del barrido muestran qué se detectó y dónde; los marcadores aparecen escalonados; en el detalle la criatura sube a su lugar y las barras de estadísticas se llenan desde cero; los controles entran cuando el vuelo aterriza, ya listos para usar. Nada aparece de golpe.
 - **Para todos:** se usa con teclado (el foco entra al panel al abrirlo y vuelve al cerrarlo), y con movimiento reducido no hay vuelo y el sprite queda quieto.
 - **Sin romperse:** si se corta internet aparece un aviso y lo que falló se reintenta solo al volver; lo ya cargado sigue andando. Las direcciones inexistentes y los errores muestran páginas propias en castellano con una salida al mapa.
 
@@ -29,7 +30,7 @@ PokéAPI no dice dónde vive cada criatura, sólo su hábitat (bosque, pradera, 
 | TypeScript estricto | `strict` y `no-explicit-any` en error (de `eslint-config-next/typescript`): no hay ningún `any` en el código. |
 | Tailwind CSS 4 | Tokens propios que reemplazan la paleta por defecto; se ven en `/system`. |
 | MapLibre GL + OpenFreeMap | Tiles vectoriales gratuitos, sin API key, con estilo propio (`src/map/style.ts`). |
-| `motion` (el nombre actual de Framer Motion) | Transiciones por estado del panel y de las hojas; lo ambiental queda en CSS. |
+| `motion` (el nombre actual de Framer Motion) | Transiciones por estado del panel y de las hojas, y el llenado de las barras de estadísticas; lo ambiental queda en CSS. |
 | next-intl | Interfaz en castellano (es-AR) desde `messages/es-AR.json`. |
 | zod | Valida las respuestas de PokéAPI en la frontera. |
 | Vitest, Testing Library, fast-check | Unitarios, componentes por rol y texto, propiedades para la geometría. |
@@ -64,6 +65,7 @@ Más detalle de servidor y cliente, datos, calidad (CI, accesibilidad, rendimien
 - **Claude Code** como agente principal, con subagentes para implementar y para revisar.
 - **Worktrees de Orca** para correr varias unidades en paralelo, con subagentes trabajando cada uno en su propia rama.
 - **Claude Design** para comparar paletas del mapa y direcciones de arte lado a lado antes de decidir.
+- **Superpowers** (skills de proceso): spec y plan por unidad antes de escribir código, implementación con un subagente por tarea y un revisor independiente, y verificación antes de cerrar cada rama.
 - **Skills de revisión**: `vercel-react-best-practices` (rendimiento en React y Next) e `impeccable` (diseño de interfaz; su `critique` puntúa una pantalla con las 10 heurísticas de Nielsen y el informe lo lee una persona).
 - **Revisión en dos lentes por unidad**: una contra la spec, la calidad y las reglas del repo; otra con buenas prácticas de React y Next.
 
@@ -108,6 +110,11 @@ Cada unidad pasa por una revisión independiente y por una prueba manual en el n
 - Dos E2E esperaban que el mapa se dibujara en un Firefox de CI sin WebGL2.
   → Se reprodujo en Linux con Docker y los tests pasaron a afirmar la vuelta al mapa, no su dibujo.
 
+- Los botones deshabilitados se dibujaban sin caja y al habilitarse se pintaban en un segundo paso.
+  → Lo vio el autor al probar; conservan su caja y los controles entran recién cuando aterriza el vuelo.
+- La suite completa en los cinco perfiles, reservada para la release, nunca se había corrido y falló al primer intento.
+  → La release corre la misma suite que cada PR; adaptar los tests por perfil quedó como deuda a la vista en el workflow.
+
 La IA aceleró el trabajo; la calidad salió de las revisiones independientes, de los tests que reproducen cada error y de las decisiones de producto tomadas por una persona.
 
 ## 4. Próximos pasos (con una semana más)
@@ -119,7 +126,6 @@ La IA aceleró el trabajo; la calidad salió de las revisiones independientes, d
 3. Clima real (Open-Meteo) como modificador de qué aparece, explicado en pantalla.
 4. Contador de descubiertas sobre 386 y nombres en castellano en los marcadores.
 5. Sismos recientes (USGS) y aviso al volver si cayó uno dentro de una cerca guardada.
-6. Transición compartida al abrir una criatura: su imagen viaja del marcador al panel de detalle (View Transitions).
 
 **Técnico**
 
