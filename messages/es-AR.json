@@ -1,0 +1,281 @@
+{
+  "Metadata": {
+    "title": "PokeRadar Geoespacial"
+  },
+  "Home": {
+    "heading": "PokeRadar Geoespacial"
+  },
+  "NotFound": {
+    "metaTitle": "Página inexistente · PokeRadar Geoespacial",
+    "title": "Esta página no existe.",
+    "body": "Revisá la dirección o volvé al mapa.",
+    "backToMap": "Volver al mapa"
+  },
+  "AppError": {
+    "title": "Algo salió mal.",
+    "body": "Probá de nuevo o volvé al mapa.",
+    "retry": "Reintentar",
+    "backToMap": "Volver al mapa"
+  },
+  "Map": {
+    "region": "Mapa de Argentina",
+    "keyboardHelp": "Usá las flechas para moverte y las teclas + y − para acercar o alejar.",
+    "controls": "Controles del mapa",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "reset": "Ver Argentina",
+    "skipIntro": "Saltar",
+    "skipIntroLabel": "Saltar el vuelo de entrada",
+    "loading": "Cargando el mapa…",
+    "slow": "El mapa está tardando más de lo normal.",
+    "errorTitle": "No se pudo cargar el mapa.",
+    "errorBody": "Revisá tu conexión y probá de nuevo.",
+    "offlineBody": "El mapa necesita internet para cargarse.",
+    "retry": "Reintentar",
+    "unsupportedTitle": "Este navegador no puede mostrar el mapa.",
+    "unsupportedBody": "Probá actualizarlo o activar la aceleración por hardware.",
+    "attribution": "Datos del mapa",
+    "attributionData": "Datos de",
+    "legend": "Hábitats",
+    "legendList": "Hábitats en el mapa"
+  },
+  "MapHelp": {
+    "title": "Cómo moverse",
+    "touch": "Arrastrá con un dedo para moverte · Pellizcá para acercar o alejar",
+    "touchpad": "Touchpad: dos dedos para moverte · pellizcá para acercar",
+    "mouse": "Mouse: arrastrá para moverte · rueda para acercar",
+    "keyboard": "Teclado: flechas para moverte · + y − para acercar",
+    "dismiss": "Entendido",
+    "close": "Cerrar"
+  },
+  "Button": {
+    "loading": "Cargando…"
+  },
+  "Connection": {
+    "offlineTitle": "Sin conexión.",
+    "offlineBody": "Lo que ya está cargado sigue disponible; el resto vuelve cuando se recupere.",
+    "recovered": "Conexión recuperada."
+  },
+  "Sites": {
+    "buenos-aires": "Buenos Aires",
+    "cordoba": "Córdoba",
+    "rosario": "Rosario",
+    "mendoza": "Mendoza",
+    "tucuman": "San Miguel de Tucumán",
+    "mar-del-plata": "Mar del Plata",
+    "salta": "Salta",
+    "neuquen": "Neuquén",
+    "cueva-de-las-manos": "Cueva de las Manos",
+    "caverna-de-las-brujas": "Caverna de las Brujas",
+    "cueva-de-los-leones": "Cueva de los Leones",
+    "aconcagua": "Aconcagua",
+    "perito-moreno": "Glaciar Perito Moreno",
+    "iguazu-falls": "Cataratas del Iguazú",
+    "ischigualasto": "Ischigualasto"
+  },
+  "Fences": {
+    "yungas": "Yungas",
+    "ibera": "Esteros del Iberá",
+    "pampa": "Pampa húmeda",
+    "puna": "Puna",
+    "monte": "Monte",
+    "patagonia": "Estepa patagónica",
+    "sea": "Mar Argentino",
+    "misiones": "Selva misionera"
+  },
+  "Sweep": {
+    "fences": "Cercas",
+    "hint": "Elegí una cerca para barrerla.",
+    "detected": "{fence}: <n>{count}</n> {count, plural, one {criatura detectada} other {criaturas detectadas}}{weak, plural, =0 {.} one { y <w>{weak}</w> señal débil. Achicá la cerca para resolverla.} other { y <w>{weak}</w> señales débiles. Achicá la cerca para resolverlas.}}",
+    "empty": "{fence}: ninguna criatura detectada. Probá con otra cerca.",
+    "loading": "Buscando criaturas…",
+    "unavailableTitle": "No pudimos cargar las criaturas.",
+    "unavailableBody": "Probá de nuevo en unos segundos.",
+    "retry": "Reintentar",
+    "list": "Criaturas detectadas en {fence}",
+    "view": "Ver {name}"
+  },
+  "FenceDrawing": {
+    "start": "Trazar cerca",
+    "own": "Tu cerca",
+    "title": "Trazando cerca",
+    "hint": "tocá el mapa para sumar vértices",
+    "count": "{count} de {max} vértices",
+    "addHere": "Sumar punto acá",
+    "undo": "Deshacer",
+    "close": "Cerrar cerca",
+    "cancel": "Cancelar",
+    "keyboardHelp": "Usá las flechas para mover el mapa bajo la mira, Enter para sumar ese punto y Escape para cancelar.",
+    "tooFew": "{missing, plural, one {Falta # vértice} other {Faltan # vértices}}",
+    "tooMany": "Llegaste al máximo de {max} vértices",
+    "crossing": "Las líneas no se pueden cruzar",
+    "tooLarge": "La cerca es demasiado grande: achicala",
+    "outside": "Tocá dentro de Argentina"
+  },
+  "System": {
+    "metaTitle": "Sistema · PokeRadar Geoespacial",
+    "heading": "Sistema de diseño",
+    "intro": "Referencia viva de los tokens y las primitivas de PokeRadar Geoespacial.",
+    "sections": {
+      "colors": "Colores",
+      "typography": "Tipografía",
+      "motion": "Movimiento",
+      "button": "Botón",
+      "tag": "Rótulo",
+      "energyBar": "Barra de energía",
+      "quantity": "Cifra",
+      "notice": "Aviso"
+    },
+    "colors": {
+      "intro": "Contraste de cada color sobre el fondo, contra el mínimo de su uso.",
+      "columns": {
+        "token": "Token",
+        "origin": "Origen",
+        "value": "Valor",
+        "contrast": "Contraste",
+        "usage": "Uso",
+        "result": "Resultado"
+      },
+      "origins": {
+        "background": "Noche de la puna",
+        "surface": "Derivado de: Noche de la puna",
+        "foreground": "Sal de Salinas Grandes",
+        "muted": "Derivado de: Sal de Salinas Grandes",
+        "structure": "Basalto de la meseta",
+        "control": "Derivado de: Basalto de la meseta",
+        "habitat": "Ocre de la puna jujeña",
+        "condition": "Hielo del Perito Moreno",
+        "energy": "Flor de ceibo",
+        "alert": "Piedra de Talampaya",
+        "map-sea": "Mar Argentino profundo",
+        "map-land": "Ripio de la estepa patagónica, noche clara",
+        "map-coast": "Restinga de Península Valdés en bajamar",
+        "map-border": "Basalto bajo luna",
+        "map-province": "Basalto húmedo",
+        "map-space": "Cielo nocturno de la Puna",
+        "biome-forest": "Selva de las yungas salteñas",
+        "biome-grassland": "Pastizal de la pampa en primavera",
+        "biome-waters-edge": "Esteros del Iberá",
+        "biome-mountain": "Cerro de los Siete Colores",
+        "biome-rough-terrain": "Arcillas de Ischigualasto",
+        "biome-sea": "Mar Argentino frente a Península Valdés",
+        "sweep": "Costra de sal de Salinas Grandes al atardecer",
+        "flag-sky": "Celeste de la bandera argentina"
+      },
+      "usage": {
+        "base": "Fondo base",
+        "text": "Texto",
+        "graphic": "Gráfico",
+        "decorative": "Decorativo",
+        "withMinimum": "{usage} · mín. {minimum, number}"
+      },
+      "result": {
+        "pass": "✓ Cumple",
+        "fail": "✕ No cumple",
+        "noMinimum": "Sin mínimo"
+      }
+    },
+    "typography": {
+      "sample": "Pikachu en el Aconcagua",
+      "figures": "Las cifras van en Chivo Mono, con dígitos de ancho fijo:",
+      "condensed": "Archivo condensada",
+      "sizes": {
+        "label": "0,75 rem",
+        "body": "0,9375 rem",
+        "subtitle": "1,125 rem",
+        "title": "1,5 a 1,875 rem",
+        "headline": "2,25 a 3,25 rem",
+        "hero": "3,5 a 5,5 rem"
+      }
+    },
+    "motion": {
+      "reduced": "Con movimiento reducido todas las duraciones pasan a 0 ms."
+    },
+    "button": {
+      "primary": "Principal",
+      "secondary": "Secundaria",
+      "save": "Guardar",
+      "createFence": "Crear cerca",
+      "missingVertices": "Faltan 2 vértices",
+      "searching": "Buscando",
+      "cancel": "Cancelar",
+      "export": "Exportar",
+      "pickZoneFirst": "Elegí una zona primero",
+      "loading": "Cargando"
+    },
+    "tag": {
+      "forest": "Bosque",
+      "rain": "Lluvia",
+      "noData": "Sin dato"
+    },
+    "energyBar": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "max": "Máximo"
+    },
+    "notice": {
+      "infoTitle": "Radar actualizado",
+      "infoBody": "Se cargaron los avistamientos de las últimas 24 horas.",
+      "successTitle": "Cerca guardada",
+      "errorTitle": "No se pudo cargar el mapa",
+      "errorBody": "Revisá tu conexión. Intentos: {attempts, number}",
+      "retry": "Reintentar"
+    }
+  },
+  "Types": {
+    "normal": "Normal",
+    "fighting": "Lucha",
+    "flying": "Volador",
+    "poison": "Veneno",
+    "ground": "Tierra",
+    "rock": "Roca",
+    "bug": "Bicho",
+    "ghost": "Fantasma",
+    "steel": "Acero",
+    "fire": "Fuego",
+    "water": "Agua",
+    "grass": "Planta",
+    "electric": "Eléctrico",
+    "psychic": "Psíquico",
+    "ice": "Hielo",
+    "dragon": "Dragón",
+    "dark": "Siniestro",
+    "fairy": "Hada"
+  },
+  "Habitats": {
+    "cave": "Cueva",
+    "forest": "Bosque",
+    "grassland": "Pradera",
+    "mountain": "Montaña",
+    "rare": "Raro",
+    "rough-terrain": "Terreno agreste",
+    "sea": "Mar",
+    "urban": "Ciudad",
+    "waters-edge": "Orilla"
+  },
+  "Creature": {
+    "region": "Detalle de criatura",
+    "close": "Cerrar",
+    "loading": "Cargando criatura…",
+    "errorTitle": "No se pudo cargar la criatura.",
+    "errorBody": "Revisá tu conexión y probá de nuevo.",
+    "retry": "Reintentar",
+    "notFoundTitle": "Esta criatura no existe.",
+    "notFoundBody": "Revisá el enlace o elegí otra en el mapa.",
+    "backToMap": "Volver al mapa",
+    "types": "Tipos",
+    "stats": "Estadísticas",
+    "height": "Altura",
+    "weight": "Peso",
+    "cry": "Escuchar grito",
+    "attribution": "Datos de PokéAPI"
+  },
+  "Stats": {
+    "hp": "PS",
+    "attack": "Ataque",
+    "defense": "Defensa",
+    "specialAttack": "Ataque especial",
+    "specialDefense": "Defensa especial",
+    "speed": "Velocidad"
+  }
+}

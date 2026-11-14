@@ -1,0 +1,55 @@
+name: PR policy
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-policy:
+    name: pr-policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch flow and PR title
+        # Untrusted PR data goes through env, never interpolated into the script
+        env:
+          HEAD: ${{ github.head_ref }}
+          BASE: ${{ github.base_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          fail=0
+
+          case "$BASE" in
+            main)    allowed='^(release|hotfix)/' ;;
+            develop) allowed='^(feat|fix|chore|release|hotfix)/' ;;
+          esac
+          if ! [[ "$HEAD" =~ $allowed ]]; then
+            echo "::error::Branch '$HEAD' cannot be merged into '$BASE' (allowed: $allowed)"
+            fail=1
+          fi
+          if ! [[ "$HEAD" =~ ^[a-z]+/[a-z0-9.][a-z0-9.-]*$ ]]; then
+            echo "::error::'$HEAD' does not follow <type>/<kebab-case-description>"
+            fail=1
+          fi
+
+          title_re='^(feat|fix|chore|docs|refactor|test|ci|perf|build|style|revert)(\([a-z0-9-]+\))?!?: [a-z0-9].*$'
+          if ! [[ "$TITLE" =~ $title_re ]]; then
+            echo "::error::The title '$TITLE' does not follow 'type(scope): subject' with a lowercase subject"
+            fail=1
+          fi
+
+          # Release and hotfix titles may use another type (e.g. chore(release), fix)
+          prefix="${HEAD%%/*}"
+          type="${TITLE%%[(:!]*}"
+          if [[ "$prefix" =~ ^(feat|fix|chore)$ && "$type" != "$prefix" ]]; then
+            echo "::error::The title type ('$type') does not match the branch prefix ('$prefix')"
+            fail=1
+          fi
+
+          exit $fail

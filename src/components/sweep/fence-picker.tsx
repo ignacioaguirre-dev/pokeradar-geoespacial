@@ -1,0 +1,53 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { type ReactNode, useId } from "react";
+import { Button } from "@/components/ui/button";
+
+type Props = {
+  fences: readonly { id: string; name: string }[];
+  active: string | null;
+  disabled?: boolean;
+  // First in the row, before the presets: drawing an own fence
+  lead?: ReactNode;
+  onChoose(id: string): void;
+};
+
+// A row that scrolls sideways on phones, two columns in the desktop panel
+export function FencePicker({ fences, active, disabled = false, lead, onChoose }: Props) {
+  const t = useTranslations("Sweep");
+  const labelId = useId();
+  return (
+    <div role="group" aria-labelledby={labelId} className="flex min-w-0 flex-col gap-2">
+      <p
+        id={labelId}
+        className="font-display font-stretch-condensed text-label font-bold tracking-wider text-muted uppercase"
+      >
+        {t("fences")}
+      </p>
+      {/* Disabled, the row has nothing to reach: a scroller with no focusable stop could not be scrolled from the keyboard */}
+      <ul
+        className={`-mx-1 flex snap-x gap-2 px-1 pb-1 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0 ${disabled ? "overflow-x-hidden" : "overflow-x-auto"}`}
+      >
+        {lead ? <li className="shrink-0 snap-start md:col-span-2 md:*:w-full">{lead}</li> : null}
+        {fences.map(({ id, name }) => {
+          const pressed = id === active;
+          return (
+            <li key={id} className="shrink-0 snap-start md:*:w-full">
+              <Button
+                variant={pressed ? "primary" : "secondary"}
+                aria-pressed={pressed}
+                disabled={disabled}
+                onClick={() => onChoose(id)}
+                // One line in the phone row; in the narrow desktop columns a long name wraps instead of spilling
+                className="w-full px-3! whitespace-nowrap md:justify-start md:py-1 md:text-left md:leading-tight md:whitespace-normal"
+              >
+                {name}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}

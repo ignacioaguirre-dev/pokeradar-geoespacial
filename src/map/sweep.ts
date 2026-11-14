@@ -1,0 +1,184 @@
+import type { GeoJSONSource, Map as MapLibreMap, PaddingOptions } from "maplibre-gl";
+import { bbox } from "@/domain/geometry/bbox";
+import { centroid } from "@/domain/geometry/centroid";
+import { crowded } from "@/domain/geometry/crowded";
+import type { LngLat, Ring } from "@/domain/geometry/types";
+import { trace } from "@/domain/sightings/trace";
+import { addMarkers, MARKER_PX, type SweepCreature } from "./sweep-markers";
+import { ringRadius, sweepFrame, traceGradient, worldRadius, type SweepFrame } from "./sweep-motion";
+import { RING_LAYERS, SWEEP_FENCE, SWEEP_RINGS, SWEEP_TRACES } from "./sweep-style";
+
+export type SweepFence = { readonly id: string; readonly ring: Ring };
+
+type Options = {
+  fence: SweepFence;
+  creatures: readonly SweepCreature[];
+  padding: PaddingOptions;
+  // 0 under reduced motion: the camera jumps and the sweep is drawn complete
+  durationMs: number;
+  ease(t: number): number;
+  traceColor: string;
+  onSelect(id: number): void;
+  onIntent(id: number): void;
+};
+
+// Event data the map controls (+, − and Ver Argentina) pass with their camera move: like a gesture, it is the person's
+export const CONTROL_MOVE = { control: true } as const;
+
+const EMPTY = { type: "FeatureCollection", features: [] } as const;
+
+// If the camera never reports the end of its move (a gesture took over), start anyway
+const CAMERA_GRACE_MS = 250;
+
+function setData(map: MapLibreMap, source: string, data: Parameters<GeoJSONSource["setData"]>[0]) {
+  map.getSource<GeoJSONSource>(source)?.setData(data);
+}
+
+const closed = (ring: Ring): LngLat[] => [...ring, ring[0]];
+
+// A regional view at most: creatures a few metres apart must not pull the camera down to street level
+const MAX_SETTLE_ZOOM = 10;
+
+const grow = (padding: PaddingOptions, by: number): PaddingOptions => ({
+  top: (padding.top ?? 0) + by,
+  right: (padding.right ?? 0) + by,
+  bottom: (padding.bottom ?? 0) + by,
+  left: (padding.left ?? 0) + by,
+});
+
+// Creatures traced near the center can land on top of each other: then the camera closes in on them,
+// leaving half a marker beyond the interface padding so the outermost ones are not cut by an edge.
+// A short second move (half the sweep's), none under reduced motion
+function frameCreatures(map: MapLibreMap, creatures: readonly SweepCreature[], padding: PaddingOptions, durationMs: number) {
+  const onScreen = creatures.map(({ point }) => {
+    const { x, y } = map.project([point[0], point[1]]);
+    return [x, y] as const;
+  });
+  if (!crowded(onScreen, MARKER_PX)) return;
+  const [west, south, east, north] = bbox(creatures.map((c) => c.point));
+  map.fitBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    {
+      padding: grow(padding, MARKER_PX / 2),
+      absolutePadding: true,
+      maxZoom: MAX_SETTLE_ZOOM,
+      duration: durationMs / 2,
+      animate: durationMs > 0,
+    },
+  );
+}
+
+export function clearSweep(map: MapLibreMap): void {
+  for (const source of [SWEEP_FENCE, SWEEP_RINGS, SWEEP_TRACES]) setData(map, source, EMPTY);
+}
+
+// Frames the fence, then plays the event once: rings out from the center, traces to each creature,
+// markers where they land. Returns the cancel, which stops the frames and takes the markers away
+export function runSweep(map: MapLibreMap, options: Options): () => void {
+  const { fence, creatures, padding, durationMs, ease, traceColor } = options;
+  const center = centroid(fence.ring);
+  const reach = worldRadius(center, fence.ring);
+
+  setData(map, SWEEP_FENCE, {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "LineString", coordinates: closed(fence.ring).map(([lng, lat]) => [lng, lat]) },
+  });
+  setData(map, SWEEP_RINGS, {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "Point", coordinates: [center[0], center[1]] },
+  });
+  setData(map, SWEEP_TRACES, {
+    type: "FeatureCollection",
+    features: creatures.map((creature) => ({
+      type: "Feature",
+      properties: { id: creature.id },
+      geometry: { type: "LineString", coordinates: trace(center, creature.point).map(([lng, lat]) => [lng, lat]) },
+    })),
+  });
+
+  // Values built here, not by users: skipping the style validation saves its cost on every frame
+  type Paint = Parameters<MapLibreMap["setPaintProperty"]>;
+  const set = (layer: string, property: Paint[1], value: Paint[2]) =>
+    map.setPaintProperty(layer, property, value, { validate: false });
+  const paint = (frame: SweepFrame) => {
+    frame.rings.forEach(({ scale, opacity }, i) => {
+      set(RING_LAYERS[i], "circle-radius", ringRadius(reach, scale));
+      set(RING_LAYERS[i], "circle-stroke-opacity", opacity);
+    });
+    set(SWEEP_TRACES, "line-gradient", traceGradient(traceColor, frame.trace));
+  };
+
+  let markers: ReturnType<typeof addMarkers> = [];
+  // A wheel, drag or pinch during the sweep hands the camera to the person: the closing-in move would undo it.
+  // Only gestures carry the DOM event, and the controls their own mark; the sweep's own camera moves carry neither
+  let taken = false;
+  const onMoveStart = (event: { originalEvent?: unknown; control?: boolean }) => {
+    if (event.originalEvent || event.control) taken = true;
+  };
+  map.on("movestart", onMoveStart);
+  const land = () => {
+    markers = addMarkers(map, creatures, options);
+    if (!taken) frameCreatures(map, creatures, padding, durationMs);
+  };
+
+  const [west, south, east, north] = bbox(fence.ring);
+  const animate = durationMs > 0;
+  map.fitBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    // Absolute: the fence padding replaces the map's, so it never adds up with the base one
+    { padding, absolutePadding: true, linear: true, duration: durationMs, animate },
+  );
+
+  if (!animate) {
+    paint(sweepFrame(0, 0, ease));
+    land();
+    return () => {
+      map.off("movestart", onMoveStart);
+      markers.forEach((marker) => marker.remove());
+    };
+  }
+
+  // Hidden until the camera arrives: the event reads only once the fence is in view
+  paint(sweepFrame(0, durationMs, ease));
+  let frame = 0;
+  let started = false;
+  let cancelled = false;
+  const tick = (start: number) => {
+    const elapsed = performance.now() - start;
+    const state = sweepFrame(elapsed, durationMs, ease);
+    paint(state);
+    if (state.done) {
+      frame = 0;
+      land();
+      return;
+    }
+    frame = requestAnimationFrame(() => tick(start));
+  };
+  const begin = () => {
+    if (started || cancelled) return;
+    started = true;
+    clearTimeout(grace);
+    map.off("moveend", begin);
+    const start = performance.now();
+    frame = requestAnimationFrame(() => tick(start));
+  };
+  map.once("moveend", begin);
+  const grace = setTimeout(begin, durationMs + CAMERA_GRACE_MS);
+
+  return () => {
+    cancelled = true;
+    clearTimeout(grace);
+    map.off("moveend", begin);
+    map.off("movestart", onMoveStart);
+    if (frame) cancelAnimationFrame(frame);
+    markers.forEach((marker) => marker.remove());
+  };
+}

@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm test:coverage
+
+      - run: pnpm build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+        if: steps.browsers.outputs.cache-hit != 'true'
+
+      # System libraries are not part of the cache
+      - run: pnpm exec playwright install-deps chromium firefox webkit
+        if: steps.browsers.outputs.cache-hit == 'true'
+
+      # The home page is prerendered with its sightings: build them from the PokéAPI fixtures, as the run
+      # serves them, so the E2E never depend on the real service. Another port: Playwright starts its own
+      - name: Build against the PokéAPI fixtures
+        run: |
+          PORT=3199 node e2e/fixtures/pokeapi-server.mjs &
+          fixtures=$!
+          for _ in $(seq 50); do curl -sf http://localhost:3199/health > /dev/null && break; sleep 0.2; done
+          curl -sf http://localhost:3199/health > /dev/null || { echo "::error::PokéAPI fixtures did not start"; exit 1; }
+          POKEAPI_BASE_URL=http://localhost:3199 pnpm build
+          kill "$fixtures"
+
+      - name: Check that the five projects are defined
+        run: |
+          list="$(pnpm exec playwright test --list --grep @critical)"
+          echo "$list"
+          for project in chromium firefox webkit android iphone; do
+            if ! grep -q "\[$project\]" <<< "$list"; then
+              echo "::error::Project '$project' is missing from the Playwright matrix"
+              exit 1
+            fi
+          done
+
+      # One run keeps every project in a single report: the whole suite in chromium, @critical in the rest.
+      # The full suite in every project (E2E_FULL=1) is not a gate yet: many tests are written for a desktop
+      # chromium and need a per-project condition first
+      - name: Run e2e
+        run: pnpm exec playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
+
+  auditoria:
+    name: auditoria
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      # No pnpm cache here: the job never installs, so there is no store to save
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: pnpm audit --audit-level=high
