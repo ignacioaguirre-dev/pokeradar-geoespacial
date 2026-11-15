@@ -16,6 +16,7 @@ import { CONTROL_MOVE } from "./sweep";
 import { type FenceDraftProps, reticlePoint, useFenceDraft } from "./use-fence-draft";
 import { type SweepProps, useSweep } from "./use-sweep";
 import { type GestureState, classifyWheel, toPixels, wheelAction, wheelZoomDelta } from "./wheel-gesture";
+import { rendersInSoftware } from "./supports-webgl2";
 
 export type { SweepCreature, SweepFence, SweepProps } from "./use-sweep";
 export type { FenceDraftProps } from "./use-fence-draft";
@@ -108,6 +109,8 @@ export function BaseMap({
         // The map idles between moves. Without the last frame kept, Chrome repaints a hovered control or marker
         // over an emptied buffer and that rectangle of the map shows the background instead
         canvasContextAttributes: { preserveDrawingBuffer: true },
+        // Each arriving tile fades its labels in over many frames; drawn on the CPU every one of them blocks the page
+        fadeDuration: rendersInSoftware() ? 0 : undefined,
         // Its handler reads every wheel as zoom; the wheel listener below pans touchpad swipes instead
         scrollZoom: false,
         dragRotate: false,

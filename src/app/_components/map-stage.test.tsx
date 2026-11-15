@@ -44,6 +44,7 @@ const fake = vi.hoisted(() => ({
     reticlePoint: (): readonly [number, number] | null => null,
   },
   webgl2: true,
+  software: false,
   chunkFailures: 0,
   // While pending, the map suspends as if its chunk were still downloading
   chunk: null as Promise<void> | null,
@@ -137,7 +138,7 @@ vi.mock("@/features/map-help/storage", async (importOriginal) => {
   };
 });
 
-vi.mock("@/map/supports-webgl2", () => ({ supportsWebGL2: () => fake.webgl2 }));
+vi.mock("@/map/supports-webgl2", () => ({ supportsWebGL2: () => fake.webgl2, rendersInSoftware: () => fake.software }));
 // The detail reads the URL through the Next router, which these tests do not mount
 const route = vi.hoisted(() => ({ onChange: null as ((id: number | null) => void) | null }));
 vi.mock("./creature-route", () => ({
@@ -218,6 +219,7 @@ describe("MapStage", () => {
     fake.sightings = undefined;
     fake.sweep = undefined;
     fake.webgl2 = true;
+    fake.software = false;
     fake.chunkFailures = 0;
     fake.chunk = null;
     fake.intro = undefined;
@@ -964,6 +966,16 @@ describe("MapStage", () => {
       expect(fake.intro).toBe(true);
       const skip = screen.getByRole("button", { name: SKIP });
       expect(skip).toHaveTextContent("Saltar");
+    });
+
+    // Drawn on the CPU, each frame of the globe freezes the page: the map lands where the flight would end
+    it("lands directly where WebGL draws without graphics hardware", async () => {
+      fake.software = true;
+      await renderStage();
+      expect(fake.intro).toBe(false);
+      expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
+      report("ready");
+      expect(screen.getByRole("button", { name: "Acercar" })).toBeEnabled();
     });
 
     it("keeps the fences disabled while flying, like the map controls", async () => {

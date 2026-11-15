@@ -23,7 +23,7 @@ import { OWN_FENCE_ID, useFenceSweep } from "@/features/sweep/use-fence-sweep";
 import { usePointerKind } from "@/hooks/use-pointer-kind";
 import { useResolved } from "@/hooks/use-resolved";
 import type { MapHandle, MapInput, MapStatus, SweepCreature, SweepProps } from "@/map/base-map";
-import { supportsWebGL2 } from "@/map/supports-webgl2";
+import { rendersInSoftware, supportsWebGL2 } from "@/map/supports-webgl2";
 import { CreatureRoute, preloadCreaturePanel } from "./creature-route";
 import type { FenceDrawingHandle } from "./fence-drawing";
 import { FenceDrawing, FenceDrawingTrigger, preloadFenceDrawing } from "./fence-drawing-entry";
@@ -159,9 +159,10 @@ function useRoomyViewport(): boolean {
 function useHelpSeen(): boolean {
   return useSyncExternalStore(subscribeMapHelp, hasSeenMapHelp, () => true);
 }
-// A shared creature link lands on its detail, whose desktop panel would also cover the skip button
+// A shared creature link lands on its detail, whose desktop panel would also cover the skip button.
+// Without graphics hardware the globe in motion freezes the page for seconds per frame: it lands directly
 function shouldFly(): boolean {
-  if (introPlayed.current || window.matchMedia(REDUCED_MOTION_QUERY).matches) return false;
+  if (introPlayed.current || window.matchMedia(REDUCED_MOTION_QUERY).matches || rendersInSoftware()) return false;
   return parseCreatureId(new URLSearchParams(window.location.search).get(CREATURE_PARAM)) === null;
 }
 
