@@ -1,6 +1,7 @@
 {
   "Metadata": {
-    "title": "PokeRadar Geoespacial"
+    "title": "PokeRadar Geoespacial",
+    "description": "Explorá el mapa de Argentina y descubrí qué criaturas viven en cada ecorregión: elegí o trazá una cerca y barrela para ver qué hay adentro."
   },
   "Home": {
     "heading": "PokeRadar Geoespacial"

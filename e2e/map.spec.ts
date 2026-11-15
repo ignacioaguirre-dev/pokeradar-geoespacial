@@ -1,13 +1,7 @@
 import { devices, expect, test, type Locator, type Page, type Response } from "@playwright/test";
 import messages from "../messages/es-AR.json";
 import { MAP_HELP_SEEN_KEY } from "../src/features/map-help/storage";
-import {
-  expectNoA11yViolations,
-  expectScreenshot,
-  mockOpenFreeMap,
-  mockPokeApiAssets,
-  waitForMapReady,
-} from "./helpers";
+import { expectNoA11yViolations, expectScreenshot, HARDWARE_GPU, mockOpenFreeMap, mockPokeApiAssets, reportRenderer, SOFTWARE_GPU, waitForMapReady } from "./helpers";
 
 const t = messages.Map;
 const help = messages.MapHelp;
@@ -269,6 +263,10 @@ test.describe("with WebGL2", () => {
 
   test.describe("entry flight", () => {
     const skipButton = (page: Page) => page.getByRole("button", { name: t.skipIntroLabel });
+
+    test.beforeEach(async ({ page }) => {
+      await reportRenderer(page, HARDWARE_GPU);
+    });
     const zoomOf = async (page: Page) => Number(await page.locator("[data-map]").getAttribute("data-zoom"));
     const regionBusy = (page: Page) => page.getByRole("region", { name: t.region });
 
@@ -431,6 +429,15 @@ test.describe("with WebGL2", () => {
       await page.getByRole("application", { name: t.region }).click();
       await expect(skipButton(page)).toBeHidden();
       expect(await zoomOf(page)).toBe(final);
+    });
+
+    // Drawn on the CPU each frame of the globe freezes the page for seconds: it lands where the flight would end
+    test("without graphics hardware it lands directly, without a flight", async ({ page }) => {
+      await reportRenderer(page, SOFTWARE_GPU);
+      await page.goto("/");
+      await expect(regionBusy(page)).toHaveAttribute("aria-busy", "false", { timeout: 30_000 });
+      await expect(skipButton(page)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: t.zoomIn })).toBeEnabled();
     });
 
     test("reduced motion opens on the final frame without a flight", async ({ page }) => {

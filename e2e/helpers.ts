@@ -56,6 +56,24 @@ export async function mockOpenFreeMap(page: Page, options: MockOptions = {}): Pr
   });
 }
 
+// The app skips the entry flight where WebGL draws on the CPU, and the CI browsers do. Tests about the flight
+// report a graphics card instead; the map still renders in software underneath
+export async function reportRenderer(page: Page, renderer: string): Promise<void> {
+  await page.addInitScript((name) => {
+    for (const Context of [WebGLRenderingContext, WebGL2RenderingContext]) {
+      const original = Context.prototype.getParameter;
+      Context.prototype.getParameter = function (this: WebGLRenderingContext, parameter: number) {
+        // RENDERER and UNMASKED_RENDERER_WEBGL
+        if (parameter === 0x1f01 || parameter === 0x9246) return name;
+        return original.call(this, parameter);
+      };
+    }
+  }, renderer);
+}
+
+export const HARDWARE_GPU = "ANGLE (Test GPU Direct3D11 vs_5_0 ps_5_0, D3D11)";
+export const SOFTWARE_GPU = "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)";
+
 // Generous because CI renders WebGL in software. Every test that waits for the map skips the entry flight here,
 // so it starts from the final frame with the controls enabled; under reduced motion there is no flight to skip
 export async function waitForMapReady(page: Page): Promise<void> {
